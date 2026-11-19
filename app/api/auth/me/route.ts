@@ -1,0 +1,1 @@
+import {NextResponse} from "next/server";import {getSession} from "@/lib/session";export async function GET(){const s=await getSession();if(!s?.sub)return NextResponse.json({user:null});return NextResponse.json({user:{id:s.sub,role:s.role,displayName:s.displayName,email:s.email}});}
