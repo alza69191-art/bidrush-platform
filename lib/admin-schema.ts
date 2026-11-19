@@ -1,6 +1,8 @@
 import {db} from "@/lib/db";
+let ready=false;
 async function hasColumn(table:string,column:string){const [rows]=await db().execute("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?",[table,column]);return (rows as any[]).length>0;}
 export async function ensureAdminSchema(){
+ if(ready)return;
  const pool=db();
  if(!(await hasColumn("users","deleted_at")))await pool.execute("ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP NULL");
  for(const [column,type] of [["image_data","MEDIUMBLOB NULL"],["image_mime","VARCHAR(40) NULL"],["image_name","VARCHAR(180) NULL"]] as const){if(!(await hasColumn("tasks",column)))await pool.execute("ALTER TABLE tasks ADD COLUMN "+column+" "+type);}
@@ -14,4 +16,5 @@ export async function ensureAdminSchema(){
  await pool.execute(`CREATE TABLE IF NOT EXISTS user_consents(id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,user_id CHAR(36) NOT NULL,terms_version VARCHAR(30) NOT NULL,privacy_version VARCHAR(30) NOT NULL,accepted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,ip_hash CHAR(64),INDEX idx_consents_user(user_id),FOREIGN KEY(user_id) REFERENCES users(id))`);
  await pool.execute(`CREATE TABLE IF NOT EXISTS support_tickets(id CHAR(36) PRIMARY KEY,user_id CHAR(36) NOT NULL,subject VARCHAR(160) NOT NULL,category VARCHAR(50) NOT NULL DEFAULT 'general',status ENUM('open','waiting_user','waiting_support','resolved','closed') NOT NULL DEFAULT 'open',priority ENUM('normal','high','urgent') NOT NULL DEFAULT 'normal',created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,INDEX idx_support_status_time(status,updated_at),INDEX idx_support_user_time(user_id,updated_at),CONSTRAINT fk_support_ticket_user FOREIGN KEY(user_id) REFERENCES users(id))`);
  await pool.execute(`CREATE TABLE IF NOT EXISTS support_messages(id CHAR(36) PRIMARY KEY,ticket_id CHAR(36) NOT NULL,sender_id CHAR(36) NULL,sender_type ENUM('user','admin','system') NOT NULL,body TEXT NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX idx_support_messages_ticket_time(ticket_id,created_at),CONSTRAINT fk_support_message_ticket FOREIGN KEY(ticket_id) REFERENCES support_tickets(id),CONSTRAINT fk_support_message_sender FOREIGN KEY(sender_id) REFERENCES users(id))`);
+ ready=true;
 }
