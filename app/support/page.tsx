@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useState} from "react";
 import WorkspaceShell from "@/components/WorkspaceShell";
-type Ticket={id:string;subject:string;category:string;status:string;created_at:string};
+type Ticket={id:string;subject:string;category:string;status:string;created_at:string;updated_at:string};
 type Message={id:string;sender_type:string;body:string;created_at:string};
 const labels:Record<string,string>={open:"مفتوح",waiting_user:"بانتظار ردك",waiting_support:"بانتظار الدعم",resolved:"تم الحل",closed:"مغلق"};
 export default function SupportPage(){
