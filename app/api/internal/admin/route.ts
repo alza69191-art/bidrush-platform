@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {randomUUID,timingSafeEqual} from "node:crypto";
 import {db} from "@/lib/db";
+import {ensureAdminSchema} from "@/lib/admin-schema";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 function authorized(req:Request){const expected=process.env.ADMIN_API_KEY||"",provided=req.headers.get("x-admin-api-key")||"";if(expected.length<32||provided.length!==expected.length)return false;try{return timingSafeEqual(Buffer.from(expected),Buffer.from(provided));}catch{return false;}}
@@ -8,6 +9,7 @@ function denied(){return NextResponse.json({error:"Unauthorized"},{status:401});
 export async function GET(req:Request){
  if(!authorized(req))return denied();const view=new URL(req.url).searchParams.get("view")||"overview";
  try{
+  await ensureAdminSchema();
   if(view==="users"){const [rows]=await db().execute("SELECT id,email,display_name,role,status,created_at,deleted_at FROM users ORDER BY created_at DESC LIMIT 500");return NextResponse.json({users:rows});}
   if(view==="reports"){const [rows]=await db().execute("SELECT r.id,r.task_id,r.reporter_id,r.reason,r.details,r.status,r.created_at,u.email,u.display_name FROM reports r JOIN users u ON u.id=r.reporter_id ORDER BY r.created_at DESC LIMIT 500");return NextResponse.json({reports:rows});}
   if(view==="tickets"){const [rows]=await db().execute("SELECT t.id,t.user_id,t.subject,t.category,t.status,t.priority,t.created_at,t.updated_at,u.email,u.display_name,(SELECT body FROM support_messages m WHERE m.ticket_id=t.id ORDER BY m.created_at DESC LIMIT 1) last_message,(SELECT COUNT(*) FROM support_messages m WHERE m.ticket_id=t.id) message_count FROM support_tickets t JOIN users u ON u.id=t.user_id ORDER BY FIELD(t.status,'open','waiting_support','waiting_user','resolved','closed'),t.updated_at DESC LIMIT 500");return NextResponse.json({tickets:rows});}
