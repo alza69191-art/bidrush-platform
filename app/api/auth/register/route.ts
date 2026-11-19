@@ -1,0 +1,7 @@
+import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
+import bcrypt from "bcryptjs";
+import { db } from "@/lib/db";
+import { createSession } from "@/lib/session";
+export const runtime="nodejs";
+export async function POST(req:Request){ try { const body=await req.json(); const email=String(body.email||"").trim().toLowerCase(); const displayName=String(body.displayName||"").trim(); const password=String(body.password||""); const role=body.role==="freelancer"?"freelancer":"client"; if(!/^\S+@\S+\.\S+$/.test(email)||email.length>254) return NextResponse.json({error:"أدخل بريداً إلكترونياً صحيحاً."},{status:400}); if(displayName.length<2||displayName.length>80) return NextResponse.json({error:"الاسم يجب أن يكون بين حرفين و80 حرفاً."},{status:400}); if(password.length<10||password.length>72) return NextResponse.json({error:"كلمة المرور يجب ألا تقل عن 10 أحرف."},{status:400}); const id=randomUUID(); const hash=await bcrypt.hash(password,12); await db().execute("INSERT INTO users (id,email,password_hash,display_name,role,status) VALUES (?,?,?,?,?,'active')",[id,email,hash,displayName,role]); await createSession({id,email,displayName,role}); return NextResponse.json({ok:true}); } catch(e:any){ if(e?.code==="ER_DUP_ENTRY") return NextResponse.json({error:"هذا البريد مسجل مسبقاً."},{status:409}); console.error("register_error",e); return NextResponse.json({error:"تعذر إنشاء الحساب. تحقق من إعداد قاعدة البيانات."},{status:500}); } }
