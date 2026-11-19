@@ -19,7 +19,7 @@ export async function POST(req:Request){
  if(!authorized(req))return denied();
  try{const b=await req.json(),ticketId=String(b.ticketId||""),body=String(b.message||"").trim();if(!ticketId||body.length<2||body.length>3000)return NextResponse.json({error:"Invalid ticket reply"},{status:400});
  const [rows]=await db().execute("SELECT id,user_id,status FROM support_tickets WHERE id=?",[ticketId]);const t=(rows as any[])[0];if(!t)return NextResponse.json({error:"Ticket not found"},{status:404});if(["resolved","closed"].includes(t.status))return NextResponse.json({error:"Ticket is closed"},{status:409});
- await db().execute("INSERT INTO support_messages(id,ticket_id,sender_id,sender_type,body) VALUES(?,?,NULL,'admin',?)",[randomUUID(),ticketId,body]);await db().execute("UPDATE support_tickets SET status='waiting_user',updated_at=CURRENT_TIMESTAMP WHERE id=?",[ticketId]);await db().execute("INSERT INTO notifications(id,user_id,type,title,body,href) VALUES(?,?,?,?,?,?)",[randomUUID(),t.user_id,"support_reply","رد جديد من الدعم",body.slice(0,140),"/support/"+ticketId]);return NextResponse.json({ok:true},{status:201});
+ await db().execute("INSERT INTO support_messages(id,ticket_id,sender_id,sender_type,body) VALUES(?,?,NULL,'admin',?)",[randomUUID(),ticketId,body]);await db().execute("UPDATE support_tickets SET status='waiting_user',updated_at=CURRENT_TIMESTAMP WHERE id=?",[ticketId]);await db().execute("INSERT INTO notifications(id,user_id,type,title,body,href) VALUES(?,?,?,?,?,?)",[randomUUID(),t.user_id,"support_reply","رد جديد من الدعم",body.slice(0,140),"/support"]);return NextResponse.json({ok:true},{status:201});
  }catch{return NextResponse.json({error:"Could not send reply."},{status:503});}
 }
 export async function PATCH(req:Request){
