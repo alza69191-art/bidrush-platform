@@ -170,10 +170,10 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
     <p className="muted">محفظة العميل: <code dir="ltr">{escrow.buyerWallet}</code><br/>محفظة المستقل: <code dir="ltr">{escrow.sellerWallet}</code></p>
     {isBuyer && escrow.status === "awaiting_funding" && <button className="btn btn-primary" disabled={busy} onClick={() => signAction("fund")}>{busy ? "جارٍ تنفيذ العملية..." : "تمويل الضمان بـ USDC"}</button>}
     {isBuyer && escrow.status === "work_submitted" && <button className="btn btn-primary" disabled={busy} onClick={() => signAction("release")}>{busy ? "جارٍ تنفيذ العملية..." : "تحرير المبلغ للمستقل"}</button>}
-    {!isBuyer && escrow.status === "released" && !escrow.claimTxHash && claimable && <button className="btn btn-primary" disabled={busy} onClick={() => signAction("claim")}>{busy ? "جارٍ تنفيذ العملية..." : "المطالبة بالمبلغ واستلامه"}</button>}
+    {!isBuyer && escrow.status === "released" && !escrow.claimTxHash && !escrow.onchainClaimed && claimable && <button className="btn btn-primary" disabled={busy} onClick={() => signAction("claim")}>{busy ? "جارٍ تنفيذ العملية..." : "المطالبة بالمبلغ واستلامه"}</button>}
     {escrow.status === "funded" && <p className="notice">تم تأكيد التمويل. يستطيع المستقل تسليم العمل الآن.</p>}
-    {!isBuyer && escrow.status === "released" && !escrow.claimTxHash && !claimable && <p className="notice">لا يمكن المطالبة قبل انتهاء فترة الاعتراض المحددة في العقد الذكي.</p>}
-    {escrow.status === "released" && escrow.claimTxHash && <p className="notice">تم تحرير الضمان وتأكيد مطالبة المستفيد.</p>}
+    {!isBuyer && escrow.status === "released" && !escrow.claimTxHash && !escrow.onchainClaimed && !claimable && <p className="notice">لا يمكن المطالبة قبل انتهاء فترة الاعتراض المحددة في العقد الذكي.</p>}
+    {escrow.status === "released" && (escrow.claimTxHash || escrow.onchainClaimed) && <p className="notice">تم تحرير الضمان وتأكيد تحويل المبلغ والعمولة على الشبكة.</p>}
     {message && <p role="status" className="notice">{message}</p>}
     {error && <p role="alert" className="form-error">{error}</p>}
     <div style={{ marginTop: 12, display: "grid", gap: 6 }}>{txLinks.filter(([, hash]) => hash).map(([label, hash]) => <a key={label} href={networkConfig(escrow.network).explorer + hash} target="_blank" rel="noreferrer" className="text-link">{label}: {String(hash).slice(0, 12)}… · BaseScan</a>)}</div>
