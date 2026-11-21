@@ -1,2 +1,105 @@
-import {NextResponse} from "next/server";import {getSession} from "@/lib/session";import {db} from "@/lib/db";import {randomUUID} from "node:crypto";import {ensureAdminSchema} from "@/lib/admin-schema";export const runtime="nodejs";
-export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){const s=await getSession();if(!s?.sub)return NextResponse.json({error:"سجّل الدخول."},{status:401});const {id}=await params;try{await ensureAdminSchema();const {bidId}=await req.json(),c=await db().getConnection();try{await c.beginTransaction();const [tr]=await c.execute("SELECT client_id,status,currency FROM tasks WHERE id=? FOR UPDATE",[id]);const t=(tr as any[])[0];if(!t||t.client_id!==String(s.sub))throw new Error("اختيار الفائز لصاحب المزاد فقط.");if(t.status!=="live")throw new Error("المزاد لم يعد مفتوحاً.");const [br]=await c.execute("SELECT id,freelancer_id,amount FROM bids WHERE id=? AND task_id=?",[String(bidId),id]);const b=(br as any[])[0];if(!b)throw new Error("العرض غير موجود.");await c.execute("UPDATE tasks SET winner_bid_id=?,status='awarded' WHERE id=?",[b.id,id]);const [settingsRows]=await c.execute("SELECT commission_bps,provider,network,token FROM escrow_settings WHERE id=1 FOR UPDATE");const settings=(settingsRows as any[])[0]||{commission_bps:100,provider:"unicrow",network:"base-sepolia",token:"USDC"};const commissionBps=0,commissionAmount=0,escrowId=randomUUID();await c.execute("INSERT INTO escrow_transactions(id,task_id,bid_id,client_id,freelancer_id,amount,currency,commission_bps,commission_amount,provider,network,token,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?, 'awaiting_funding')",[escrowId,id,b.id,String(t.client_id),String(b.freelancer_id),Number(b.amount),String(t.currency||"USD"),commissionBps,commissionAmount,String(settings.provider||"unicrow"),String(settings.network||"base-sepolia"),String(settings.token||"USDC")]);await c.execute("INSERT INTO escrow_events(id,escrow_id,actor_id,event_type,description,metadata) VALUES(?,?,?,'escrow_created',?,?)",[randomUUID(),escrowId,String(s.sub),"تم إنشاء سجل متابعة للاحتجاز بانتظار تمويل العميل عبر Unicrow. لا توجد عمولة للمنصة في هذه المرحلة.",JSON.stringify({amount:Number(b.amount),commissionBps,commissionAmount})]);await c.execute("INSERT INTO notifications(id,user_id,type,title,body,href) VALUES(?,?,?,?,?,?)",[randomUUID(),b.freelancer_id,"bid_awarded","تم اختيار عرضك","تم اختيارك. تم تجهيز سجل الوساطة، ويجب تأكيد تمويل الاحتجاز قبل بدء التنفيذ المالي عبر المنصة.","/auctions/"+id]);await c.execute("INSERT INTO task_events(task_id,actor_id,event_type,payload) VALUES(?,?,?,?)",[id,String(s.sub),"bid_awarded",JSON.stringify({bidId:b.id})]);await c.commit();return NextResponse.json({ok:true});}catch(e){await c.rollback();throw e;}finally{c.release();}}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"تعذر اختيار العرض."},{status:400});}}
+import {NextResponse} from "next/server";
+import {getSession} from "@/lib/session";
+import {db} from "@/lib/db";
+import {randomUUID} from "node:crypto";
+import {ensureAdminSchema} from "@/lib/admin-schema";
+
+export const runtime="nodejs";
+
+export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
+  const session=await getSession();
+  if(!session?.sub)return NextResponse.json({error:"سجّل الدخول."},{status:401});
+
+  const {id}=await params;
+  let connection:any;
+
+  try{
+    await ensureAdminSchema();
+    const body=await req.json();
+    const bidId=String(body.bidId||"");
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bidId)){
+      return NextResponse.json({error:"معرّف العرض غير صالح."},{status:400});
+    }
+
+    connection=await db().getConnection();
+    await connection.beginTransaction();
+
+    const [taskRows]=await connection.execute(
+      "SELECT client_id,status,currency,(auction_ends_at<=UTC_TIMESTAMP()) AS auction_expired FROM tasks WHERE id=? FOR UPDATE",
+      [id]
+    );
+    const task=(taskRows as any[])[0];
+
+    if(!task){
+      await connection.rollback();
+      return NextResponse.json({error:"المزاد غير موجود."},{status:404});
+    }
+    if(String(task.client_id)!==String(session.sub)){
+      await connection.rollback();
+      return NextResponse.json({error:"اختيار الفائز متاح لصاحب المزاد فقط."},{status:403});
+    }
+    if(task.status!=="live"){
+      await connection.rollback();
+      return NextResponse.json({error:"المزاد لم يعد مفتوحاً."},{status:409});
+    }
+    if(Number(task.auction_expired)===1){
+      await connection.execute("UPDATE tasks SET status='expired' WHERE id=? AND status='live'",[id]);
+      await connection.commit();
+      return NextResponse.json({error:"انتهى وقت المزاد؛ لا يمكن اختيار عرض بعد انتهائه."},{status:409});
+    }
+
+    const [bidRows]=await connection.execute(
+      "SELECT id,freelancer_id,amount FROM bids WHERE id=? AND task_id=? FOR UPDATE",
+      [bidId,id]
+    );
+    const bid=(bidRows as any[])[0];
+    if(!bid){
+      await connection.rollback();
+      return NextResponse.json({error:"العرض غير موجود في هذا المزاد."},{status:404});
+    }
+    if(String(bid.freelancer_id)===String(task.client_id)){
+      await connection.rollback();
+      return NextResponse.json({error:"لا يمكن اختيار عرض صاحب المزاد نفسه."},{status:409});
+    }
+
+    const [settingsRows]=await connection.execute(
+      "SELECT provider,network,token FROM escrow_settings WHERE id=1 FOR UPDATE"
+    );
+    const settings=(settingsRows as any[])[0]||{provider:"unicrow",network:"base-sepolia",token:"USDC"};
+
+    // Platform and arbitrator fees remain zero until testnet end-to-end tests pass.
+    const commissionBps=0;
+    const commissionAmount=0;
+    const escrowId=randomUUID();
+
+    await connection.execute(
+      "UPDATE tasks SET winner_bid_id=?,status='awarded' WHERE id=? AND status='live'",
+      [bid.id,id]
+    );
+    await connection.execute(
+      "INSERT INTO escrow_transactions(id,task_id,bid_id,client_id,freelancer_id,amount,currency,commission_bps,commission_amount,provider,network,token,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?, 'awaiting_funding')",
+      [escrowId,id,bid.id,String(task.client_id),String(bid.freelancer_id),Number(bid.amount),String(task.currency||"USD"),commissionBps,commissionAmount,String(settings.provider||"unicrow"),String(settings.network||"base-sepolia"),String(settings.token||"USDC")]
+    );
+    await connection.execute(
+      "INSERT INTO escrow_events(id,escrow_id,actor_id,event_type,description,metadata) VALUES(?,?,?,'escrow_created',?,?)",
+      [randomUUID(),escrowId,String(session.sub),"تم إنشاء سجل متابعة داخلي بانتظار تمويل الاحتجاز على شبكة الاختبار؛ لم يتم تحويل أي أموال بعد.",JSON.stringify({amount:Number(bid.amount),commissionBps,commissionAmount,network:String(settings.network||"base-sepolia")})]
+    );
+    await connection.execute(
+      "INSERT INTO notifications(id,user_id,type,title,body,href) VALUES(?,?,?,?,?,?)",
+      [randomUUID(),bid.freelancer_id,"bid_awarded","تم اختيار عرضك","تم اختيار عرضك. لا يبدأ الاحتجاز المالي إلا بعد تأكيد معاملة Unicrow على الشبكة.", "/auctions/"+id]
+    );
+    await connection.execute(
+      "INSERT INTO task_events(task_id,actor_id,event_type,payload) VALUES(?,?,?,?)",
+      [id,String(session.sub),"bid_awarded",JSON.stringify({bidId:bid.id,escrowId})]
+    );
+
+    await connection.commit();
+    return NextResponse.json({ok:true,escrowId,status:"awaiting_funding",network:String(settings.network||"base-sepolia")});
+  }catch(error){
+    if(connection)await connection.rollback().catch(()=>{});
+    console.error("auction_award_failed",error);
+    return NextResponse.json({error:error instanceof Error?error.message:"تعذر اختيار العرض."},{status:500});
+  }finally{
+    if(connection)connection.release();
+  }
+}
