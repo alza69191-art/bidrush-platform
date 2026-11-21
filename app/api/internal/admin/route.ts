@@ -72,8 +72,8 @@ export async function PATCH(req:Request){
    return NextResponse.json({ok:true,deleted:true});
   }
   if(b.action==="escrow_settings"){
-   const provider=String(b.provider||"unicrow"),network=String(b.network||"base"),token=String(b.token||"USDC"),maxHoldDays=b.maxHoldDays===null||b.maxHoldDays===""?null:Number(b.maxHoldDays);
-   if(!["unicrow","manual"].includes(provider)||!["base","arbitrum"].includes(network)||token!=="USDC"||(maxHoldDays!==null&&(!Number.isInteger(maxHoldDays)||maxHoldDays<1||maxHoldDays>365)))return NextResponse.json({error:"Invalid escrow settings"},{status:400});
+   const provider=String(b.provider||"unicrow"),network=String(b.network||"base-sepolia"),token=String(b.token||"USDC"),maxHoldDays=b.maxHoldDays===null||b.maxHoldDays===""?null:Number(b.maxHoldDays);
+   if(!["unicrow","manual"].includes(provider)||!["base-sepolia"].includes(network)||token!=="USDC"||(maxHoldDays!==null&&(!Number.isInteger(maxHoldDays)||maxHoldDays<1||maxHoldDays>365)))return NextResponse.json({error:"Invalid escrow settings"},{status:400});
    await db().execute("UPDATE escrow_settings SET provider=?,network=?,token=?,max_hold_days=?,commission_bps=0 WHERE id=1",[provider,network,token,maxHoldDays]);
    return NextResponse.json({ok:true});
   }
