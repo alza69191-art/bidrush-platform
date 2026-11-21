@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const RPC = "https://sepolia.base.org";
-const CHAIN_ID = 84532n;
+const CHAIN_ID = 84532;
 const ADDRESSES = {
   unicrow: "0x32fab9f28724c1c5832d5d6830afe498f8abdaac",
   dispute: "0xdb2076dcecc82ed0dd204bf7b6db a44f0fea9e36".replace(/ /g, ""),
@@ -52,15 +52,15 @@ function sameAddress(actual: string, expected: string) {
 }
 
 export async function GET() {
-  const provider = new JsonRpcProvider(RPC, Number(CHAIN_ID), {
+  const provider = new JsonRpcProvider(RPC, CHAIN_ID, {
     staticNetwork: true,
   });
 
   try {
     const network = await provider.getNetwork();
-    if (network.chainId !== CHAIN_ID) {
+    if (Number(network.chainId) !== CHAIN_ID) {
       return NextResponse.json(
-        { ok: false, error: "WRONG_CHAIN", expected: CHAIN_ID.toString(), actual: network.chainId.toString(), transactionSent: false },
+        { ok: false, error: "WRONG_CHAIN", expected: String(CHAIN_ID), actual: network.chainId.toString(), transactionSent: false },
         { status: 503 },
       );
     }
