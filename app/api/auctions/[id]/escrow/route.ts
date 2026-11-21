@@ -34,6 +34,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (!row || (String(row.client_id) !== String(session.sub) && String(row.freelancer_id) !== String(session.sub))) {
       return NextResponse.json({ escrow: null });
     }
+    let challengePeriodEnd: number | null = null;
+    let onchainClaimed = false;
+    if (row.provider_reference !== null && row.provider_reference !== undefined) {
+      const readProvider = new JsonRpcProvider(RPC, CHAIN_ID, { staticNetwork: true });
+      try {
+        const contract = new Contract(UNICROW, Unicrow__factory.abi, readProvider);
+        const data = await contract.getAllEscrowData(String(row.provider_reference));
+        challengePeriodEnd = Number(data.escrow.challengePeriodEnd);
+        onchainClaimed = Number(data.escrow.claimed) !== 0;
+      } finally { await readProvider.destroy(); }
+    }
     return NextResponse.json({
       escrow: {
         id: row.id, taskId: row.task_id, amount: String(row.amount), currency: row.currency,
@@ -41,7 +52,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         depositTxHash: row.deposit_tx_hash, releaseTxHash: row.release_tx_hash, claimTxHash: row.claim_tx_hash,
         buyerWallet: row.buyer_wallet, sellerWallet: row.seller_wallet,
         client: String(row.client_id) === String(session.sub),
-        challengePeriodSeconds: 259200,
+        challengePeriodSeconds: Number(row.challenge_period_seconds || 259200),
+        challengePeriodEnd, onchainClaimed,
       },
     });
   } catch {
@@ -89,7 +101,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const claimContract = new Contract(CLAIM, UnicrowClaim__factory.abi, provider);
     let eventFound = false;
     let sellerUsdcReceived = BigInt(0);
-    const expectedTo = action === "claim" ? CLAIM : UNICROW;
+    const configuredClaim = getAddress(await unicrow.unicrowClaim());
+    if (configuredClaim !== getAddress(CLAIM)) return NextResponse.json({ error: "عنوان عقد Claim لا يطابق عنوان Unicrow المنشور." }, { status: 503 });
+    const expectedTo = action === "claim" ? configuredClaim : UNICROW;
     if (!tx.to || getAddress(tx.to) !== getAddress(expectedTo)) return NextResponse.json({ error: "وجهة المعاملة لا تطابق عقد Unicrow المتوقع." }, { status: 409 });
 
     for (const log of receipt.logs) {
@@ -110,6 +124,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const chainData = await unicrow.getAllEscrowData(escrowId);
     const onchain = chainData.escrow;
+    const latestBlock = await provider.getBlock("latest");
+    if (!latestBlock) return NextResponse.json({ error: "تعذر قراءة وقت آخر كتلة من الشبكة." }, { status: 503 });
+    if (action === "claim" && latestBlock.timestamp < Number(onchain.challengePeriodEnd)) return NextResponse.json({ error: "لم تنتهِ فترة الاعتراض على الشبكة بعد؛ لا يمكن المطالبة قبل موعدها." }, { status: 409 });
+    if (action === "claim" && Number(onchain.claimed) === 0) return NextResponse.json({ error: "العقد لم يسجل الضمان كمطالب به بعد." }, { status: 409 });
+    if (Number(onchain.challengePeriodEnd) - Number(onchain.challengePeriodStart) !== Number(row.challenge_period_seconds)) return NextResponse.json({ error: "مدة الاعتراض في العقد لا تطابق المدة المسجلة في BidRush." }, { status: 409 });
     if (getAddress(onchain.buyer) !== getAddress(row.buyer_wallet) ||
         getAddress(onchain.seller) !== getAddress(row.seller_wallet) ||
         getAddress(onchain.currency) !== getAddress(USDC) ||
@@ -140,6 +159,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const [lockedRows] = await connection.execute("SELECT status,deposit_tx_hash,release_tx_hash,claim_tx_hash FROM escrow_transactions WHERE id=? FOR UPDATE", [row.id]);
     const locked = (lockedRows as any[])[0];
     if (!locked) throw new Error("سجل الوساطة غير موجود.");
+    if (action === "claim" && locked.claim_tx_hash) {
+      if (locked.claim_tx_hash === txHash) { await connection.rollback(); return NextResponse.json({ ok: true, idempotent: true, status: locked.status }); }
+      throw new Error("تم تسجيل مطالبة سابقة لهذا الضمان.");
+    }
     if (action === "fund") {
       if (locked.status !== "awaiting_funding") throw new Error("تغيرت حالة الضمان أثناء التحقق.");
       await connection.execute("UPDATE escrow_transactions SET status='funded',provider_reference=?,deposit_tx_hash=?,funded_at=UTC_TIMESTAMP(),hold_started_at=UTC_TIMESTAMP() WHERE id=?", [String(escrowId), txHash, row.id]);
