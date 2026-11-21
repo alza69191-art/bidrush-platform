@@ -61,13 +61,13 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
       chainId = String(await wallet.request({ method: "eth_chainId" })).toLowerCase();
     }
     if (chainId !== config.chain) throw new Error("يجب الاتصال بشبكة Base المحددة للمزاد.");
-    const challengeResponse = await fetch("/api/wallet", { cache: "no-store" });
+    const challengeResponse = await fetch("/api/wallet?chainId=" + config.chainId, { cache: "no-store" });
     const challenge = await challengeResponse.json();
     if (!challengeResponse.ok) throw new Error(challenge.error || "تعذر بدء التحقق.");
     const text = "BidRush wallet verification\nAddress: " + address + "\nChain ID: " + config.chainId + "\nNonce: " + challenge.nonce;
     const hex = "0x" + Array.from(new TextEncoder().encode(text)).map((x) => x.toString(16).padStart(2, "0")).join("");
     const signature = await wallet.request({ method: "personal_sign", params: [hex, address] });
-    const save = await fetch("/api/wallet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address, nonce: challenge.nonce, signature }) });
+    const save = await fetch("/api/wallet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address, nonce: challenge.nonce, signature, chainId: config.chainId }) });
     const saved = await save.json();
     if (!save.ok) throw new Error(saved.error || "تعذر التحقق من المحفظة.");
     return address;
