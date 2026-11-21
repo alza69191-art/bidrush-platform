@@ -29,7 +29,46 @@ export async function PATCH(req:Request){
  if(!authorized(req))return denied();
  try{const b=await req.json();
   if(b.action==="user_status"){const id=String(b.userId||""),status=String(b.status||"");if(!id||!["active","suspended"].includes(status))return NextResponse.json({error:"Invalid user status"},{status:400});const [r]=await db().execute("UPDATE users SET status=? WHERE id=? AND deleted_at IS NULL AND role<>'admin'",[status,id]);return NextResponse.json({ok:true,changed:(r as any).affectedRows});}
-  if(b.action==="delete_user"){const id=String(b.userId||"");if(!id)return NextResponse.json({error:"Missing user id"},{status:400});const c=await db().getConnection();try{await c.beginTransaction();const [rows]=await c.execute("SELECT id FROM users WHERE id=? AND deleted_at IS NULL AND role<>'admin' FOR UPDATE",[id]);if(!(rows as any[]).length){await c.rollback();return NextResponse.json({error:"User not found or protected"},{status:404});}const anonymizedEmail="deleted+"+id+"@accounts.invalid";await c.execute("UPDATE users SET email=?,display_name='حساب محذوف',password_hash=?,status='closed',deleted_at=CURRENT_TIMESTAMP WHERE id=?",[anonymizedEmail,randomUUID()+randomUUID(),id]);await c.commit();}catch(e){await c.rollback();throw e;}finally{c.release();}return NextResponse.json({ok:true});}
+  if(b.action==="delete_user"){
+   const id=String(b.userId||"");
+   if(!id)return NextResponse.json({error:"Missing user id"},{status:400});
+   const c=await db().getConnection();
+   try{
+    await c.beginTransaction();
+    const [rows]=await c.execute("SELECT id,role FROM users WHERE id=? FOR UPDATE",[id]);
+    const user=(rows as any[])[0];
+    if(!user||["admin","moderator"].includes(String(user.role))){
+     await c.rollback();
+     return NextResponse.json({error:"User not found or protected"},{status:404});
+    }
+    // Preserve the integrity of other owners' auctions if this user had won them.
+    await c.execute(
+     "UPDATE tasks t INNER JOIN bids b ON b.id=t.winner_bid_id SET t.winner_bid_id=NULL,t.status='cancelled' WHERE b.freelancer_id=? AND t.client_id<>?",
+     [id,id]
+    );
+    // Remove all conversations and support data connected to this account.
+    await c.execute("DELETE FROM task_messages WHERE sender_id=? OR recipient_id=? OR task_id IN (SELECT id FROM tasks WHERE client_id=?)",[id,id,id]);
+    await c.execute("DELETE FROM support_messages WHERE sender_id=? OR ticket_id IN (SELECT id FROM support_tickets WHERE user_id=?)",[id,id]);
+    await c.execute("DELETE FROM support_tickets WHERE user_id=?",[id]);
+    // Remove task-related records before deleting the user's own auctions.
+    await c.execute("DELETE FROM task_extensions WHERE actor_id=? OR task_id IN (SELECT id FROM tasks WHERE client_id=?)",[id,id]);
+    await c.execute("DELETE FROM task_events WHERE actor_id=? OR task_id IN (SELECT id FROM tasks WHERE client_id=?)",[id,id]);
+    await c.execute("DELETE FROM work_submissions WHERE freelancer_id=? OR task_id IN (SELECT id FROM tasks WHERE client_id=?)",[id,id]);
+    await c.execute("DELETE FROM reviews WHERE reviewer_id=? OR reviewee_id=? OR task_id IN (SELECT id FROM tasks WHERE client_id=?)",[id,id,id]);
+    await c.execute("DELETE FROM reports WHERE reporter_id=? OR task_id IN (SELECT id FROM tasks WHERE client_id=?)",[id,id]);
+    await c.execute("DELETE FROM deposits WHERE client_id=? OR task_id IN (SELECT id FROM tasks WHERE client_id=?)",[id,id]);
+    await c.execute("DELETE FROM bids WHERE freelancer_id=? OR task_id IN (SELECT id FROM tasks WHERE client_id=?)",[id,id]);
+    await c.execute("DELETE FROM tasks WHERE client_id=?",[id]);
+    await c.execute("DELETE FROM notifications WHERE user_id=?",[id]);
+    await c.execute("DELETE FROM freelancer_profiles WHERE user_id=?",[id]);
+    await c.execute("DELETE FROM user_profiles WHERE user_id=?",[id]);
+    await c.execute("DELETE FROM user_consents WHERE user_id=?",[id]);
+    const [deleted]=await c.execute("DELETE FROM users WHERE id=? AND role NOT IN ('admin','moderator')",[id]);
+    if(!(deleted as any).affectedRows)throw new Error("Account deletion did not complete");
+    await c.commit();
+   }catch(e){await c.rollback();throw e;}finally{c.release();}
+   return NextResponse.json({ok:true,deleted:true});
+  }
   if(b.action==="report_status"){const id=String(b.reportId||""),status=String(b.status||"");if(!id||!["open","reviewing","resolved","dismissed"].includes(status))return NextResponse.json({error:"Invalid report status"},{status:400});await db().execute("UPDATE reports SET status=? WHERE id=?",[status,id]);return NextResponse.json({ok:true});}
   if(b.action==="ticket_status"){const id=String(b.ticketId||""),status=String(b.status||"");if(!id||!["open","waiting_user","waiting_support","resolved","closed"].includes(status))return NextResponse.json({error:"Invalid ticket status"},{status:400});await db().execute("UPDATE support_tickets SET status=? WHERE id=?",[status,id]);return NextResponse.json({ok:true});}
   return NextResponse.json({error:"Unknown action"},{status:400});
