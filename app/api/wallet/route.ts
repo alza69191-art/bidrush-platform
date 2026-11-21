@@ -42,7 +42,8 @@ export async function POST(req: Request) {
     const message = "BidRush wallet verification\nAddress: " + address + "\nChain ID: 84532\nNonce: " + nonce;
     const recovered = getAddress(verifyMessage(message, signature));
     if (recovered !== address) return NextResponse.json({ error: "التوقيع لا يثبت ملكية هذا العنوان." }, { status: 403 });
-    await db().execute("UPDATE users SET wallet_address=?,wallet_nonce=NULL,wallet_nonce_created_at=NULL WHERE id=? AND wallet_nonce=?", [address, String(session.sub), nonce]);
+    const [consumeResult] = await db().execute("UPDATE users SET wallet_address=?,wallet_nonce=NULL,wallet_nonce_created_at=NULL WHERE id=? AND wallet_nonce=? AND wallet_nonce_created_at>=UTC_TIMESTAMP()-INTERVAL 5 MINUTE", [address, String(session.sub), nonce]);
+    if (Number((consumeResult as any).affectedRows || 0) !== 1) return NextResponse.json({ error: "تم استخدام تحدي التحقق أو انتهت صلاحيته. أعد المحاولة." }, { status: 409 });
     return NextResponse.json({ ok: true, walletAddress: address, chainId: 84532 });
   } catch (error) {
     if (error instanceof Error && /invalid address/i.test(error.message)) return NextResponse.json({ error: "عنوان المحفظة غير صالح." }, { status: 400 });
