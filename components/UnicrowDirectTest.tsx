@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { BrowserProvider, getAddress, isAddress } from "ethers";
 import * as Unicrow from "@unicrowio/sdk";
 
@@ -133,7 +133,7 @@ export default function UnicrowDirectTest() {
     finally { setBusy(false); }
   }
 
-  const btn: React.CSSProperties = { border: 0, borderRadius: 9, padding: "11px 16px", background: "#e58a1f", color: "#fff", fontWeight: 700, cursor: "pointer", margin: "5px" };
+  const btn: CSSProperties = { border: 0, borderRadius: 9, padding: "11px 16px", background: "#e58a1f", color: "#fff", fontWeight: 700, cursor: "pointer", margin: "5px" };
   const input: React.CSSProperties = { width: "100%", padding: 11, border: "1px solid #cbd5e1", borderRadius: 8, marginTop: 6, direction: "ltr" };
 
   return <section style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 22, marginTop: 24 }}>
