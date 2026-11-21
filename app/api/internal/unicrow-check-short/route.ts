@@ -1,9 +1,7 @@
-import { NextResponse } from "next/server";
-
 const RPC_URL = "https://sepolia.base.org";
 const CONTRACTS = [
   ["unicrow", "0x32fab9f28724c1c5832d5d6830afe498f8abdaac"],
-  ["dispute", "0xdb2076dcecc82ed0dd204bf7b6db"],
+  ["dispute", "0xdb2076dcecc82ed0dd204bf7b6dba44f0fea9e36"],
   ["arbitrator", "0xad8d43ddefaf2779f72340627a81b9f31330c3dd"],
   ["claim", "0x01d612617028f14db6c6f4c00b2a9b4107a90f7a"],
 ] as const;
