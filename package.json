@@ -17,7 +17,8 @@
     "bcryptjs": "^2.4.3",
     "jose": "^5.9.6",
     "mysql2": "^3.14.0",
-    "ethers": "6.13.2"
+    "ethers": "6.13.2",
+    "@unicrowio/ethers-types": "1.2.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
