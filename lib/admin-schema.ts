@@ -6,6 +6,8 @@ export async function ensureAdminSchema(){
  const pool=db();
  if(!(await hasColumn("users","deleted_at")))await pool.execute("ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP NULL");
  if(!(await hasColumn("users","wallet_address")))await pool.execute("ALTER TABLE users ADD COLUMN wallet_address VARCHAR(42) NULL");
+ if(!(await hasColumn("users","wallet_nonce")))await pool.execute("ALTER TABLE users ADD COLUMN wallet_nonce VARCHAR(64) NULL");
+ if(!(await hasColumn("users","wallet_nonce_created_at")))await pool.execute("ALTER TABLE users ADD COLUMN wallet_nonce_created_at DATETIME NULL");
  if(!(await hasColumn("tasks","deleted_at")))await pool.execute("ALTER TABLE tasks ADD COLUMN deleted_at TIMESTAMP NULL");
  for(const [column,type] of [["image_data","MEDIUMBLOB NULL"],["image_mime","VARCHAR(100) NULL"],["image_name","VARCHAR(255) NULL"],["image_key","VARCHAR(500) NULL"]] as const){if(!(await hasColumn("tasks",column)))await pool.execute("ALTER TABLE tasks ADD COLUMN "+column+" "+type);}
  const [statusRows]=await pool.execute("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tasks' AND COLUMN_NAME='status'");
