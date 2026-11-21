@@ -97,8 +97,8 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
         const amount = parseUnits(String(escrow.amount), 6);
         const token = ERC20__factory.connect(config.usdc, signer);
         const [symbol, decimals, balance, allowance] = await Promise.all([token.symbol(), token.decimals(), token.balanceOf(address), token.allowance(address, config.unicrow)]);
-        if (symbol !== "USDC" || Number(decimals) !== 6) throw new Error("رمز USDC أو عدد منازله لا يطابق إعداد Base Sepolia.");
-        if (balance < amount) throw new Error("رصيد USDC التجريبي غير كافٍ. احصل على USDC تجريبي قبل المتابعة.");
+        if (symbol !== "USDC" || Number(decimals) !== 6) throw new Error("رمز USDC أو عدد منازله لا يطابق الشبكة المحددة.");
+        if (balance < amount) throw new Error("رصيد USDC غير كافٍ على الشبكة المحددة.");
         if (allowance < amount) {
           setMessage("تأكيد موافقة USDC في Rabby...");
           const approval = await token.approve(config.unicrow, amount);
@@ -111,7 +111,7 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
           seller: getAddress(escrow.sellerWallet),
           marketplace: escrow.platformWalletAddress ? getAddress(escrow.platformWalletAddress) : ZeroAddress,
           marketplaceFee: Number(escrow.commissionBps || 0),
-          currency: USDC,
+          currency: config.usdc,
           challengePeriod: escrow.challengePeriodSeconds,
           challengeExtension: 0,
           amount,
@@ -121,14 +121,14 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
         if (!receipt || receipt.status !== 1) throw new Error("لم تنجح معاملة إيداع الضمان.");
         let found: number | null = null;
         for (const log of receipt.logs) {
-          if (getAddress(log.address) !== getAddress(UNICROW)) continue;
+          if (getAddress(log.address) !== getAddress(config.unicrow)) continue;
           try { const parsed = unicrow.interface.parseLog(log); if (parsed?.name === "Pay") found = Number(parsed.args.escrowId); } catch {}
         }
         if (found === null) throw new Error("لم نعثر على حدث Pay في إيصال المعاملة.");
         await verifyWithServer("fund", tx.hash, found);
       } else if (action === "release") {
         setMessage("تأكيد تحرير الضمان في Rabby...");
-        const unicrow = Unicrow__factory.connect(UNICROW, signer);
+        const unicrow = Unicrow__factory.connect(config.unicrow, signer);
         const tx = await unicrow.release(escrowId);
         const receipt = await tx.wait();
         if (!receipt || receipt.status !== 1) throw new Error("لم تنجح معاملة تحرير الضمان.");
