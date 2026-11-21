@@ -2,6 +2,7 @@ import {NextResponse} from "next/server";
 import {getSession} from "@/lib/session";
 import {db} from "@/lib/db";
 import {randomUUID} from "node:crypto";
+import {formatUnits,parseUnits} from "ethers";
 import {ensureAdminSchema} from "@/lib/admin-schema";
 
 export const runtime="nodejs";
@@ -86,7 +87,7 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
       await connection.rollback();
       return NextResponse.json({error:"شبكة الوساطة غير مدعومة."},{status:409});
     }
-    const commissionAmount=Number((Number(bid.amount)*commissionBps/10000).toFixed(6));
+    const commissionAmount=formatUnits(parseUnits(String(bid.amount),6)*BigInt(commissionBps)/BigInt(10000),6);
     const escrowId=randomUUID();
 
     await connection.execute(
