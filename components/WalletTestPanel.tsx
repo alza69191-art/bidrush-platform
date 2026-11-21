@@ -1,11 +1,9 @@
 "use client";
 import {useState} from "react";
 
-type Eip1193Provider = { request(args:{method:string;params?:unknown[]|object}):Promise<unknown>; };
-declare global { interface Window { ethereum?: Eip1193Provider & {isRabby?:boolean;providers?:Array<Eip1193Provider & {isRabby?:boolean}>}; } }
-
-const TARGET_CHAIN_ID = "0x14a34"; // Base Sepolia (84532), supported by the official Unicrow SDK source
+const TARGET_CHAIN_ID = "0x14a34"; // Base Sepolia (84532)
 function shortAddress(value:string){return value.slice(0,6)+"…"+value.slice(-4);}
+function injected(){return (window as any).ethereum as any;}
 
 export default function WalletTestPanel(){
  const [address,setAddress]=useState("");
@@ -16,16 +14,16 @@ export default function WalletTestPanel(){
  async function connect(){
   setBusy(true);setStatus("");
   try{
-   const candidates=window.ethereum?.providers?.length?window.ethereum.providers:[window.ethereum];
-   const provider=candidates.find(p=>p?.isRabby) || window.ethereum;
+   const ethereum=injected();
+   const candidates=ethereum?.providers?.length?ethereum.providers:[ethereum];
+   const provider=candidates.find((p:any)=>p?.isRabby) || ethereum;
    if(!provider)throw new Error("لم نعثر على محفظة متوافقة. افتح Rabby ثم أعد تحميل الصفحة.");
    const accounts=await provider.request({method:"eth_requestAccounts"}) as string[];
    if(!Array.isArray(accounts)||!accounts[0])throw new Error("لم يتم إرجاع عنوان محفظة.");
    const chainId=String(await provider.request({method:"eth_chainId"}));
    setAddress(accounts[0]);setChain(chainId);setSaved(false);
-   if(chainId.toLowerCase()!==TARGET_CHAIN_ID){
-    setStatus("تم الاتصال، لكن الشبكة الحالية ليست Base Sepolia. لم ننفذ أي معاملة.");
-   }else setStatus("نجح الاتصال على شبكة الاختبار Base Sepolia. لم يتم إرسال أي معاملة.");
+   if(chainId.toLowerCase()!==TARGET_CHAIN_ID)setStatus("تم الاتصال، لكن الشبكة الحالية ليست Base Sepolia. لم ننفذ أي معاملة.");
+   else setStatus("نجح الاتصال على شبكة الاختبار Base Sepolia. لم يتم إرسال أي معاملة.");
   }catch(e){setStatus(e instanceof Error?e.message:"تعذر الاتصال بالمحفظة.");}
   finally{setBusy(false);}
  }
@@ -33,8 +31,9 @@ export default function WalletTestPanel(){
   if(chain.toLowerCase()!==TARGET_CHAIN_ID){setStatus("حوّل الشبكة إلى Base Sepolia قبل حفظ عنوان المحفظة.");return;}
   setBusy(true);
   try{
-   const candidates=window.ethereum?.providers?.length?window.ethereum.providers:[window.ethereum];
-   const provider=candidates.find(p=>(p as any)?.isRabby)||window.ethereum;
+   const ethereum=injected();
+   const candidates=ethereum?.providers?.length?ethereum.providers:[ethereum];
+   const provider=candidates.find((p:any)=>p?.isRabby)||ethereum;
    if(!provider)throw new Error("لم نعثر على Rabby.");
    const challengeResponse=await fetch("/api/wallet",{cache:"no-store"});
    const challenge=await challengeResponse.json();
@@ -45,27 +44,20 @@ export default function WalletTestPanel(){
    const r=await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({address,nonce:challenge.nonce,signature})});
    const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حفظ العنوان.");
    setSaved(true);setStatus("تم التحقق من ملكية العنوان وربطه بحساب BidRush. لم يتم إرسال أي معاملة مالية.");
-  }
-  catch(e){setStatus(e instanceof Error?e.message:"تعذر حفظ العنوان.");}
+  }catch(e){setStatus(e instanceof Error?e.message:"تعذر حفظ العنوان.");}
   finally{setBusy(false);}
  }
  async function switchNetwork(){
-  const candidates=window.ethereum?.providers?.length?window.ethereum.providers:[window.ethereum];
-  const provider=candidates.find(p=>p?.isRabby) || window.ethereum;
+  const ethereum=injected();
+  const candidates=ethereum?.providers?.length?ethereum.providers:[ethereum];
+  const provider=candidates.find((p:any)=>p?.isRabby)||ethereum;
   if(!provider){setStatus("لم يتم العثور على المحفظة.");return;}
   try{
-   try{
-    await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:TARGET_CHAIN_ID}]});
-   }catch(error){
+   try{await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:TARGET_CHAIN_ID}]});}
+   catch(error){
     const code=(error as {code?:number})?.code;
     if(code!==4902)throw error;
-    await provider.request({method:"wallet_addEthereumChain",params:[{
-     chainId:TARGET_CHAIN_ID,
-     chainName:"Base Sepolia",
-     nativeCurrency:{name:"Ether",symbol:"ETH",decimals:18},
-     rpcUrls:["https://sepolia.base.org"],
-     blockExplorerUrls:["https://sepolia.basescan.org"]
-    }]});
+    await provider.request({method:"wallet_addEthereumChain",params:[{chainId:TARGET_CHAIN_ID,chainName:"Base Sepolia",nativeCurrency:{name:"Ether",symbol:"ETH",decimals:18},rpcUrls:["https://sepolia.base.org"],blockExplorerUrls:["https://sepolia.basescan.org"]}]});
     await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:TARGET_CHAIN_ID}]});
    }
    const id=String(await provider.request({method:"eth_chainId"}));setChain(id);
