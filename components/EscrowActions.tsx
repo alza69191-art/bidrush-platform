@@ -5,7 +5,6 @@ import { BrowserProvider, ZeroAddress, getAddress, parseUnits } from "ethers";
 import { ERC20__factory, Unicrow__factory, UnicrowClaim__factory } from "@unicrowio/ethers-types";
 
 type Injected = { isRabby?: boolean; request(args: { method: string; params?: unknown[] | object }): Promise<any> };
- }
 
 const CHAIN = "0x14a34";
 const CHAIN_ID = 84532;
