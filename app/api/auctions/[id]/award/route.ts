@@ -25,7 +25,7 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
     await connection.beginTransaction();
 
     const [taskRows]=await connection.execute(
-      "SELECT client_id,status,currency,(auction_ends_at<=UTC_TIMESTAMP()) AS auction_expired FROM tasks WHERE id=? FOR UPDATE",
+      "SELECT t.client_id,t.status,t.currency,(t.auction_ends_at<=UTC_TIMESTAMP()) AS auction_expired,u.wallet_address AS client_wallet FROM tasks t JOIN users u ON u.id=t.client_id WHERE t.id=? FOR UPDATE",
       [id]
     );
     const task=(taskRows as any[])[0];
@@ -46,6 +46,11 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
       await connection.execute("UPDATE tasks SET status='expired' WHERE id=? AND status='live'",[id]);
       await connection.commit();
       return NextResponse.json({error:"انتهى وقت المزاد؛ لا يمكن اختيار عرض بعد انتهائه."},{status:409});
+    }
+
+    if(!task.client_wallet){
+      await connection.rollback();
+      return NextResponse.json({error:"يجب ربط محفظة Rabby والتحقق من ملكيتها قبل اختيار العرض."},{status:409});
     }
 
     const [bidRows]=await connection.execute(
@@ -81,8 +86,8 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
       [bid.id,id]
     );
     await connection.execute(
-      "INSERT INTO escrow_transactions(id,task_id,bid_id,client_id,freelancer_id,amount,currency,commission_bps,commission_amount,provider,network,token,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?, 'awaiting_funding')",
-      [escrowId,id,bid.id,String(task.client_id),String(bid.freelancer_id),Number(bid.amount),String(task.currency||"USD"),commissionBps,commissionAmount,String(settings.provider||"unicrow"),String(settings.network||"base-sepolia"),String(settings.token||"USDC")]
+      "INSERT INTO escrow_transactions(id,task_id,bid_id,client_id,freelancer_id,amount,currency,commission_bps,commission_amount,provider,network,token,buyer_wallet,seller_wallet,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'awaiting_funding')",
+      [escrowId,id,bid.id,String(task.client_id),String(bid.freelancer_id),Number(bid.amount),String(task.currency||"USD"),commissionBps,commissionAmount,String(settings.provider||"unicrow"),String(settings.network||"base-sepolia"),String(settings.token||"USDC"),String(task.client_wallet),String(bid.freelancer_wallet)]
     );
     await connection.execute(
       "INSERT INTO escrow_events(id,escrow_id,actor_id,event_type,description,metadata) VALUES(?,?,?,'escrow_created',?,?)",
