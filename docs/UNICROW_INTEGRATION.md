@@ -8,22 +8,25 @@ Status: TESTNET ONLY — no production payments.
 - Awarding a bid creates an internal `awaiting_funding` record only. It does not create an on-chain escrow.
 - Accepting a submission currently marks the task completed in the database only. It does not release funds on-chain.
 
-## Verified SDK network support and important discrepancy
-The official `@unicrowio/sdk` README lists:
-- 42161 — Arbitrum One
-- 421614 — Arbitrum Sepolia
-- 8453 — Base
-- It incorrectly repeats 8453 for Base Sepolia. Therefore **do not configure Base Sepolia (84532) in this SDK based on that README**.
-- Initial wallet connectivity testing is configured for Arbitrum Sepolia (421614), the unambiguous Sepolia test network listed by the SDK.
-- Base Sepolia integration is blocked until Unicrow confirms its deployed testnet contract addresses and SDK support in writing.
+## Selected test network: Base Sepolia
+- Chain ID: `84532`.
+- The current official SDK source file `src/config/setup.ts` explicitly includes Base Sepolia and its contract addresses: https://github.com/unicrowio/sdk/blob/main/src/config/setup.ts
+- Unicrow contract addresses currently listed in that SDK source:
+  - Unicrow: `0x32fab9f28724c1c5832d5d6830afe498f8abdaac`
+  - Dispute: `0xdb2076dcecc82ed0dd204bf7b6dba44f0fea9e36`
+  - Arbitrator: `0xad8d43ddefaf2779f72340627a81b9f31330c3dd`
+  - Claim: `0x01d612617028f14db6c6f4c00b2a9b4107a90f7a`
+- Circle USDC on Base Sepolia: `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (6 decimals). Source: https://www.circle.com/multi-chain-usdc/base
+- Important: the SDK README currently repeats chain ID 8453 for Base Sepolia, but the actual SDK source lists the correct chain ID 84532 and a Base Sepolia deployment. Use the source configuration, not the README typo.
+- Base mainnet (8453) is not enabled for this integration. No production funds or mainnet transactions.
 
 Official SDK: https://github.com/unicrowio/sdk
-SDK package: `@unicrowio/sdk` (npm latest observed: 1.2.1)
+SDK package: `@unicrowio/sdk` (source package version observed: 1.2.1)
 SDK docs: https://docs.unicrow.io/docs/devs/sdk/
 
 ## Current implementation stage
 - `/wallet-test` reads the connected EIP-1193 wallet address and chain ID.
-- It can request a switch to Arbitrum Sepolia (421614).
+- It can request a switch to Base Sepolia (84532).
 - It never asks for seed phrases/private keys and does not send transactions.
 - This is a connectivity smoke test, not an escrow integration.
 
@@ -39,7 +42,7 @@ SDK docs: https://docs.unicrow.io/docs/devs/sdk/
 ## Initial fee policy
 - BidRush marketplace fee: 0% during testing.
 - Arbitrator fee: 0% until arbitrator and fee schedule are deliberately configured.
-- Unicrow protocol fee is separate; do not assume a live percentage from an old whitepaper.
+- Unicrow protocol fee is separate; read it from the deployed contract using the SDK. Do not assume a live percentage from an old whitepaper.
 - No real funds, no production chain, and no automatic fee collection.
 - Production commission remains unset until deliberately configured.
 
@@ -47,6 +50,7 @@ SDK docs: https://docs.unicrow.io/docs/devs/sdk/
 - Never collect or store seed phrases or private keys. Rabby signs locally.
 - Never put wallet secrets, private keys, or privileged RPC credentials in browser code or Git.
 - Treat browser-supplied escrow IDs and transaction hashes as untrusted until chain-verified.
+- Server-side verification must check chain ID, official Unicrow contract address, receipt success, event signature, escrow ID, buyer, seller, token, amount, and payment reference.
 - Use server-side authorization and idempotency for every state transition.
 - Store chain ID, contract/escrow reference, tx hashes, token address, token decimals, amounts in base units, and confirmation status.
 - Keep an append-only event history; reconcile pending transactions against chain state.
