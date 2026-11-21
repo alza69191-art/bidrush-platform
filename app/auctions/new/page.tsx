@@ -19,9 +19,9 @@ export default function NewAuction(){
     const file=e.target.files?.[0];
     setError("");
     if(!file){setImage(null);setPreview("");return;}
-    if(!file.type.startsWith("image/")||file.type==="image/svg+xml"||file.size>15*1024*1024){
+    if(!file.type.startsWith("image/")||file.type==="image/svg+xml"||file.size>10*1024*1024){
       setImage(null);setPreview("");e.target.value="";
-      setError("اختر صورة بصيغة شائعة وبحجم لا يتجاوز 15 ميغابايت. SVG غير مدعوم لأسباب أمنية.");
+      setError("اختر صورة بصيغة شائعة وبحجم لا يتجاوز 10 ميغابايت. SVG غير مدعوم لأسباب أمنية.");
       return;
     }
     const reader=new FileReader();
@@ -65,7 +65,7 @@ export default function NewAuction(){
       <label>عنوان المهمة<input name="title" minLength={8} maxLength={160} required value={form.title} onChange={change} placeholder="مثال: تصميم صفحة هبوط لمتجر إلكتروني"/></label>
       <label>التصنيف<select name="category" value={form.category} onChange={change}>{["تصميم","برمجة","كتابة وترجمة","تسويق","مونتاج","صوتيات","أعمال إدارية","أخرى"].map(x=><option key={x}>{x}</option>)}</select></label>
       <label className="full-field">وصف المهمة<textarea name="description" minLength={30} maxLength={5000} required rows={6} value={form.description} onChange={change} placeholder="اشرح المطلوب والمخرجات ومعايير القبول بوضوح..."/></label>
-      <label className="full-field">صورة المزاد (اختيارية، حتى 15 ميغابايت)
+      <label className="full-field">صورة المزاد (اختيارية، حتى 10 ميغابايت)
         <input type="file" accept="image/*" onChange={choose}/>
         {image&&<span style={{display:"block",marginTop:8}}>تم اختيار: {image.name} ({(image.size/1024).toFixed(0)} كيلوبايت)</span>}
         {preview&&<img src={preview} alt="معاينة صورة المزاد" style={{display:"block",maxWidth:260,maxHeight:180,objectFit:"contain",borderRadius:12,marginTop:10}}/>}

@@ -6,7 +6,7 @@ import {ensureAdminSchema} from "@/lib/admin-schema";
 import {saveImage} from "@/lib/object-storage";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
-const MAX_IMAGE_BYTES=15*1024*1024;
+const MAX_IMAGE_BYTES=10*1024*1024;
 function imageType(b:Buffer):string|null{
  if(b.length>=3&&b[0]===255&&b[1]===216&&b[2]===255)return "image/jpeg";
  if(b.length>=8&&b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return "image/png";
@@ -33,10 +33,10 @@ export async function POST(req:Request){
  if(!Number.isFinite(budget)||budget<=0||budget>1000000||!["USD","EUR","ILS","SAR","AED"].includes(currency)||![5,10,15,30].includes(duration)||!Number.isInteger(deadlineHours)||deadlineHours<1||deadlineHours>720)return NextResponse.json({error:"الميزانية أو العملة أو المدة غير صالحة."},{status:400});
  let mime:string|null=null,name:string|null=null;
  if(image&&typeof image!=="string"&&(image as File).size>0){
-  const file=image as File;if(file.size>MAX_IMAGE_BYTES)return NextResponse.json({error:"الحد الأقصى للصورة 15 ميغابايت."},{status:413});
+  const file=image as File;if(file.size>MAX_IMAGE_BYTES)return NextResponse.json({error:"الحد الأقصى للصورة 10 ميغابايت وفق حدود Cloudinary المجانية."},{status:413});
   const bytes=Buffer.from(await file.arrayBuffer());mime=imageType(bytes);if(!mime)return NextResponse.json({error:"صيغة الصورة غير مدعومة أو الملف ليس صورة سليمة. الصيغ المدعومة: JPEG وPNG وWebP وGIF وBMP وTIFF وAVIF وHEIC."},{status:415});
-  name=file.name.replace(/[^\p{L}\p{N}._ -]/gu,"_").slice(0,255)||"image";storedKey="auctions/"+randomUUID()+"/"+randomUUID();
-  await saveImage(storedKey,bytes,mime);
+  name=file.name.replace(/[^\p{L}\p{N}._ -]/gu,"_").slice(0,255)||"image";const uploadKey="auctions/"+randomUUID()+"/"+randomUUID();
+  storedKey=await saveImage(uploadKey,bytes,mime);
  }
  const id=randomUUID();
  await db().execute("INSERT INTO tasks(id,client_id,title,description,category,currency,max_budget,deadline_at,auction_starts_at,auction_ends_at,status,image_key,image_mime,image_name) VALUES(?,?,?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL ? HOUR),UTC_TIMESTAMP(),DATE_ADD(UTC_TIMESTAMP(),INTERVAL ? MINUTE),'live',?,?,?)",[id,String(s.sub),title,description,category,currency,budget,deadlineHours,duration,storedKey,mime,name]);
