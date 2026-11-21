@@ -95,6 +95,11 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
 
       if (action === "fund") {
         const amount = parseUnits(String(escrow.amount), 6);
+        const [unicrowCode, claimCode, tokenCode] = await Promise.all([provider.getCode(config.unicrow), provider.getCode(config.claim), provider.getCode(config.usdc)]);
+        if (unicrowCode === "0x" || claimCode === "0x" || tokenCode === "0x") throw new Error("لم يتم العثور على أحد عقود Unicrow أو USDC على الشبكة المختارة؛ أُوقفت العملية قبل الموافقة أو الدفع.");
+        const unicrow = Unicrow__factory.connect(config.unicrow, signer);
+        const configuredClaim = getAddress(await unicrow.unicrowClaim());
+        if (configuredClaim !== getAddress(config.claim)) throw new Error("عنوان Claim الذي يعلنه عقد Unicrow لا يطابق عنوان العقد الرسمي للشبكة؛ أُوقفت العملية.");
         const token = ERC20__factory.connect(config.usdc, signer);
         const [symbol, decimals, balance, allowance] = await Promise.all([token.symbol(), token.decimals(), token.balanceOf(address), token.allowance(address, config.unicrow)]);
         if (symbol !== "USDC" || Number(decimals) !== 6) throw new Error("رمز USDC أو عدد منازله لا يطابق الشبكة المحددة.");
@@ -105,7 +110,6 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
           await approval.wait();
         }
         setMessage("تأكيد إيداع الضمان في Rabby...");
-        const unicrow = Unicrow__factory.connect(config.unicrow, signer);
         const tx = await unicrow.pay(address, {
           buyer: address,
           seller: getAddress(escrow.sellerWallet),
