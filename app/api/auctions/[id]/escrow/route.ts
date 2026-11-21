@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Contract, Interface, JsonRpcProvider, getAddress, parseUnits } from "ethers";
+import { Contract, Interface, JsonRpcProvider, ZeroAddress, getAddress, parseUnits } from "ethers";
 import { Unicrow__factory, UnicrowClaim__factory } from "@unicrowio/ethers-types";
 import { randomUUID } from "node:crypto";
 import { getSession } from "@/lib/session";
@@ -116,7 +116,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!tx.to || getAddress(tx.to) !== getAddress(expectedTo)) return NextResponse.json({ error: "وجهة المعاملة لا تطابق عقد Unicrow المتوقع." }, { status: 409 });
 
     for (const log of receipt.logs) {
-      if (action === "claim" && getAddress(log.address) === getAddress(config.usdc)) {
+      if ((action === "claim" || action === "release") && getAddress(log.address) === getAddress(config.usdc)) {
         try { const transfer = ERC20_EVENTS.parseLog({ topics: [...log.topics], data: log.data }); if (transfer?.name === "Transfer" && getAddress(transfer.args.to) === getAddress(row.seller_wallet)) sellerUsdcReceived += transfer.args.value as bigint; } catch {}
       }
       if (getAddress(log.address) !== getAddress(expectedTo)) continue;
@@ -129,7 +129,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       } catch { /* Ignore logs from unrelated events. */ }
     }
     if (!eventFound) return NextResponse.json({ error: "لم نعثر على حدث Unicrow المطابق داخل إيصال المعاملة." }, { status: 409 });
-    if (action === "claim" && sellerUsdcReceived <= BigInt(0)) return NextResponse.json({ error: "تم العثور على حدث المطالبة لكن إيصال المعاملة لا يثبت تحويل USDC إلى محفظة المستقل." }, { status: 409 });
+    if ((action === "claim" || action === "release") && sellerUsdcReceived <= BigInt(0)) return NextResponse.json({ error: "إيصال المعاملة لا يثبت تحويل USDC إلى محفظة المستقل." }, { status: 409 });
 
     const chainData = await unicrow.getAllEscrowData(escrowId);
     const onchain = chainData.escrow;
@@ -140,8 +140,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (Number(onchain.challengePeriodEnd) - Number(onchain.challengePeriodStart) !== Number(row.challenge_period_seconds)) return NextResponse.json({ error: "مدة الاعتراض في العقد لا تطابق المدة المسجلة في BidRush." }, { status: 409 });
     if (getAddress(onchain.buyer) !== getAddress(row.buyer_wallet) ||
         getAddress(onchain.seller) !== getAddress(row.seller_wallet) ||
-        getAddress(onchain.currency) !== getAddress(USDC) ||
-        getAddress(chainData.token.address_) !== getAddress(USDC) ||
+        getAddress(onchain.currency) !== getAddress(config.usdc) ||
+        getAddress(chainData.token.address_) !== getAddress(config.usdc) ||
         Number(chainData.token.decimals) !== 6 || String(chainData.token.symbol) !== "USDC" ||
         onchain.amount !== parseUnits(String(row.amount), 6) ||
         getAddress(onchain.marketplace) !== getAddress(row.platform_wallet_address || ZeroAddress) ||
