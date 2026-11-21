@@ -76,7 +76,9 @@ export async function PATCH(req:Request){
    const provider=String(b.provider||"unicrow"),network=String(b.network||"base-sepolia"),token=String(b.token||"USDC"),maxHoldDays=b.maxHoldDays===null||b.maxHoldDays===""?null:Number(b.maxHoldDays);
    const commissionBps=Number(b.commissionBps??100);
    let platformWalletAddress="";
-   try{platformWalletAddress=getAddress(String(b.platformWalletAddress||""));}catch{return NextResponse.json({error:"عنوان محفظة العمولة غير صالح."},{status:400});}
+   if(String(b.platformWalletAddress||"").trim()){
+    try{platformWalletAddress=getAddress(String(b.platformWalletAddress).trim());}catch{return NextResponse.json({error:"عنوان محفظة العمولة غير صالح."},{status:400});}
+   }
    if(!["unicrow"].includes(provider)||!["base-sepolia","base"].includes(network)||token!=="USDC"||!Number.isInteger(commissionBps)||commissionBps<0||commissionBps>1000||(commissionBps>0&&!platformWalletAddress)||(maxHoldDays!==null&&(!Number.isInteger(maxHoldDays)||maxHoldDays<1||maxHoldDays>365)))return NextResponse.json({error:"Invalid escrow settings"},{status:400});
    await db().execute("UPDATE escrow_settings SET provider=?,network=?,token=?,max_hold_days=?,commission_bps=?,platform_wallet_address=? WHERE id=1",[provider,network,token,maxHoldDays,commissionBps,platformWalletAddress||null]);
    return NextResponse.json({ok:true,commissionBps,platformWalletAddress,network});
