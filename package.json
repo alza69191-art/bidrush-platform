@@ -2,14 +2,30 @@
   "name": "bidrush-platform",
   "version": "0.1.0",
   "private": true,
-  "scripts": {"dev":"next dev -H 0.0.0.0","build":"next build","start":"next start -H 0.0.0.0","lint":"tsc --noEmit"},
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0",
+    "lint": "tsc --noEmit"
+  },
   "dependencies": {
-    "@aws-sdk/client-s3":"^3.850.0",
-    "next":"15.5.29","react":"^19.1.0","react-dom":"^19.1.0","lucide-react":"^0.468.0",
-    "bcryptjs":"^2.4.3","jose":"^5.9.6","mysql2":"^3.14.0"
+    "@aws-sdk/client-s3": "^3.850.0",
+    "next": "15.5.29",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "lucide-react": "^0.468.0",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.6",
+    "mysql2": "^3.14.0",
+    "ethers": "6.13.2"
   },
   "devDependencies": {
-    "@tailwindcss/postcss":"^4.1.0","@types/bcryptjs":"^2.4.6","@types/node":"^22.0.0",
-    "@types/react":"^19.0.0","@types/react-dom":"^19.0.0","tailwindcss":"^4.1.0","typescript":"^5.7.0"
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.7.0"
   }
 }
