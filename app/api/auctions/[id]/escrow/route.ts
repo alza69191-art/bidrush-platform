@@ -117,7 +117,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!tx.to || getAddress(tx.to) !== getAddress(expectedTo)) return NextResponse.json({ error: "وجهة المعاملة لا تطابق عقد Unicrow المتوقع." }, { status: 409 });
 
     for (const log of receipt.logs) {
-      if (action === "claim" && getAddress(log.address) === getAddress(config.usdc)) {
+      if ((action === "claim" || action === "release") && getAddress(log.address) === getAddress(config.usdc)) {
         try {
           const transfer = ERC20_EVENTS.parseLog({ topics: [...log.topics], data: log.data });
           if (transfer?.name === "Transfer" && getAddress(transfer.args.to) === getAddress(row.seller_wallet)) sellerUsdcReceived += transfer.args.value as bigint;
@@ -134,8 +134,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       } catch { /* Ignore logs from unrelated events. */ }
     }
     if (!eventFound) return NextResponse.json({ error: "لم نعثر على حدث Unicrow المطابق داخل إيصال المعاملة." }, { status: 409 });
-    if (action === "claim" && sellerUsdcReceived <= BigInt(0)) return NextResponse.json({ error: "إيصال المعاملة لا يثبت تحويل USDC إلى محفظة المستقل." }, { status: 409 });
-    if (action === "claim" && Number(row.commission_bps || 0) > 0) {
+    if ((action === "claim" || action === "release") && sellerUsdcReceived <= BigInt(0)) return NextResponse.json({ error: "إيصال المعاملة لا يثبت تحويل USDC إلى محفظة المستقل." }, { status: 409 });
+    if ((action === "claim" || action === "release") && Number(row.commission_bps || 0) > 0) {
       const expectedFee = parseUnits(String(row.amount), 6) * BigInt(Number(row.commission_bps)) / BigInt(10000);
       if (!row.platform_wallet_address || marketplaceUsdcReceived < expectedFee) {
         return NextResponse.json({ error: "إيصال المعاملة لا يثبت تحويل عمولة BidRush كاملة إلى محفظة الاستلام المحددة." }, { status: 409 });
