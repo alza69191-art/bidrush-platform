@@ -5,7 +5,7 @@ import { BrowserProvider, ZeroAddress, getAddress, parseUnits } from "ethers";
 import { ERC20__factory, Unicrow__factory, UnicrowClaim__factory } from "@unicrowio/ethers-types";
 
 type Injected = { isRabby?: boolean; request(args: { method: string; params?: unknown[] | object }): Promise<any> };
-declare global { interface Window { ethereum?: Injected & { providers?: Injected[] }; } }
+ }
 
 const CHAIN = "0x14a34";
 const CHAIN_ID = 84532;
@@ -16,8 +16,9 @@ const CLAIM = "0x01d612617028f14db6c6f4c00b2a9b4107a90f7a";
 const EXPLORER = "https://sepolia.basescan.org/tx/";
 
 function injectedWallet() {
-  const candidates = window.ethereum?.providers?.length ? window.ethereum.providers : [window.ethereum];
-  return candidates.find((p) => p?.isRabby) || window.ethereum || null;
+  const injected = (window as any).ethereum as (Injected & { providers?: Injected[] }) | undefined;
+  const candidates = injected?.providers?.length ? injected.providers : [injected];
+  return candidates.find((p) => p?.isRabby) || injected || null;
 }
 
 export default function EscrowActions({ taskId, taskStatus }: { taskId: string; taskStatus: string }) {
