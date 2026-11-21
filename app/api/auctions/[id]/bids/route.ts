@@ -2,6 +2,7 @@ import {NextResponse} from "next/server";
 import {randomUUID} from "node:crypto";
 import {db} from "@/lib/db";
 import {getSession} from "@/lib/session";
+import {ensureAdminSchema} from "@/lib/admin-schema";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -9,8 +10,9 @@ export const dynamic="force-dynamic";
 export async function GET(_r:Request,{params}:{params:Promise<{id:string}>}){
   const {id}=await params;
   try{
+    await ensureAdminSchema();
     const [rows]=await db().execute(
-      "SELECT b.id,b.freelancer_id,b.amount,b.note,b.created_at,u.display_name AS freelancer_name FROM bids b JOIN users u ON u.id=b.freelancer_id WHERE b.task_id=? ORDER BY b.amount ASC,b.created_at ASC",
+      "SELECT b.id,b.freelancer_id,b.amount,b.note,b.created_at,u.display_name AS freelancer_name,u.wallet_address AS freelancer_wallet FROM bids b JOIN users u ON u.id=b.freelancer_id WHERE b.task_id=? ORDER BY b.amount ASC,b.created_at ASC",
       [id]
     );
     return NextResponse.json({bids:rows});
