@@ -8,12 +8,12 @@ import { ensureAdminSchema } from "@/lib/admin-schema";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getSession();
   if (!session?.sub) return NextResponse.json({ error: "سجّل الدخول." }, { status: 401 });
   try {
     await ensureAdminSchema();
-    const requestedChainId=Number(new URL(arguments[0] as any).searchParams.get("chainId")||84532);
+    const requestedChainId=Number(new URL(req.url).searchParams.get("chainId")||84532);
     if(![8453,84532].includes(requestedChainId))return NextResponse.json({error:"شبكة المحفظة غير مدعومة."},{status:400});
     const nonce = randomBytes(18).toString("hex");
     await db().execute("UPDATE users SET wallet_nonce=?,wallet_nonce_created_at=UTC_TIMESTAMP() WHERE id=?", [nonce, String(session.sub)]);
