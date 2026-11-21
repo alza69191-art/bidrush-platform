@@ -1,5 +1,6 @@
 import {NextResponse} from "next/server";
 import {randomUUID,timingSafeEqual} from "node:crypto";
+import {getAddress} from "ethers";
 import {db} from "@/lib/db";
 import {ensureAdminSchema} from "@/lib/admin-schema";
 export const runtime="nodejs";
@@ -11,7 +12,7 @@ export async function GET(req:Request){
  try{
   await ensureAdminSchema();
   if(view==="escrow"){const [rows]=await db().execute("SELECT e.*,t.title,uc.display_name AS client_name,uf.display_name AS freelancer_name,(SELECT COUNT(*) FROM escrow_disputes d WHERE d.escrow_id=e.id AND d.status IN ('open','reviewing')) AS open_disputes FROM escrow_transactions e LEFT JOIN tasks t ON t.id=e.task_id LEFT JOIN users uc ON uc.id=e.client_id LEFT JOIN users uf ON uf.id=e.freelancer_id ORDER BY e.updated_at DESC LIMIT 500");return NextResponse.json({escrows:rows});}
-  if(view==="escrow_settings"){const [rows]=await db().execute("SELECT provider,network,token,max_hold_days,updated_at FROM escrow_settings WHERE id=1");return NextResponse.json({settings:(rows as any[])[0]||null});}
+  if(view==="escrow_settings"){const [rows]=await db().execute("SELECT provider,network,token,max_hold_days,commission_bps,platform_wallet_address,updated_at FROM escrow_settings WHERE id=1");return NextResponse.json({settings:(rows as any[])[0]||null});}
   if(view==="users"){const [rows]=await db().execute("SELECT id,email,display_name,role,status,created_at,deleted_at FROM users ORDER BY created_at DESC LIMIT 500");return NextResponse.json({users:rows});}
   if(view==="reports"){const [rows]=await db().execute("SELECT r.id,r.task_id,r.reporter_id,r.reason,r.details,r.status,r.created_at,u.email,u.display_name FROM reports r JOIN users u ON u.id=r.reporter_id ORDER BY r.created_at DESC LIMIT 500");return NextResponse.json({reports:rows});}
   if(view==="tickets"){const [rows]=await db().execute("SELECT t.id,t.user_id,t.subject,t.category,t.status,t.priority,t.created_at,t.updated_at,u.email,u.display_name,(SELECT body FROM support_messages m WHERE m.ticket_id=t.id ORDER BY m.created_at DESC LIMIT 1) last_message,(SELECT COUNT(*) FROM support_messages m WHERE m.ticket_id=t.id) message_count FROM support_tickets t JOIN users u ON u.id=t.user_id ORDER BY FIELD(t.status,'open','waiting_support','waiting_user','resolved','closed'),t.updated_at DESC LIMIT 500");return NextResponse.json({tickets:rows});}
@@ -73,9 +74,12 @@ export async function PATCH(req:Request){
   }
   if(b.action==="escrow_settings"){
    const provider=String(b.provider||"unicrow"),network=String(b.network||"base-sepolia"),token=String(b.token||"USDC"),maxHoldDays=b.maxHoldDays===null||b.maxHoldDays===""?null:Number(b.maxHoldDays);
-   if(!["unicrow","manual"].includes(provider)||!["base-sepolia"].includes(network)||token!=="USDC"||(maxHoldDays!==null&&(!Number.isInteger(maxHoldDays)||maxHoldDays<1||maxHoldDays>365)))return NextResponse.json({error:"Invalid escrow settings"},{status:400});
-   await db().execute("UPDATE escrow_settings SET provider=?,network=?,token=?,max_hold_days=?,commission_bps=0 WHERE id=1",[provider,network,token,maxHoldDays]);
-   return NextResponse.json({ok:true});
+   const commissionBps=Number(b.commissionBps??100);
+   let platformWalletAddress="";
+   try{platformWalletAddress=getAddress(String(b.platformWalletAddress||""));}catch{return NextResponse.json({error:"عنوان محفظة العمولة غير صالح."},{status:400});}
+   if(!["unicrow"].includes(provider)||!["base-sepolia","base"].includes(network)||token!=="USDC"||!Number.isInteger(commissionBps)||commissionBps<0||commissionBps>1000||(commissionBps>0&&!platformWalletAddress)||(maxHoldDays!==null&&(!Number.isInteger(maxHoldDays)||maxHoldDays<1||maxHoldDays>365)))return NextResponse.json({error:"Invalid escrow settings"},{status:400});
+   await db().execute("UPDATE escrow_settings SET provider=?,network=?,token=?,max_hold_days=?,commission_bps=?,platform_wallet_address=? WHERE id=1",[provider,network,token,maxHoldDays,commissionBps,platformWalletAddress||null]);
+   return NextResponse.json({ok:true,commissionBps,platformWalletAddress,network});
   }
   if(b.action==="report_status"){const id=String(b.reportId||""),status=String(b.status||"");if(!id||!["open","reviewing","resolved","dismissed"].includes(status))return NextResponse.json({error:"Invalid report status"},{status:400});await db().execute("UPDATE reports SET status=? WHERE id=?",[status,id]);return NextResponse.json({ok:true});}
   if(b.action==="ticket_status"){const id=String(b.ticketId||""),status=String(b.status||"");if(!id||!["open","waiting_user","waiting_support","resolved","closed"].includes(status))return NextResponse.json({error:"Invalid ticket status"},{status:400});await db().execute("UPDATE support_tickets SET status=? WHERE id=?",[status,id]);return NextResponse.json({ok:true});}
