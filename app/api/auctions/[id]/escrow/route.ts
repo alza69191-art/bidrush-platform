@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Contract, JsonRpcProvider, getAddress, parseUnits } from "ethers";
+import { Contract, Interface, JsonRpcProvider, getAddress, parseUnits } from "ethers";
 import { Unicrow__factory, UnicrowClaim__factory } from "@unicrowio/ethers-types";
 import { randomUUID } from "node:crypto";
 import { getSession } from "@/lib/session";
@@ -14,6 +14,7 @@ const RPC = "https://sepolia.base.org";
 const UNICROW = "0x32fab9f28724c1c5832d5d6830afe498f8abdaac";
 const CLAIM = "0x01d612617028f14db6c6f4c00b2a9b4107a90f7a";
 const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const ERC20_EVENTS = new Interface(["event Transfer(address indexed from,address indexed to,uint256 value)"]);
 
 async function loadEscrow(taskId: string) {
   const [rows] = await db().execute(
@@ -87,10 +88,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const unicrow = new Contract(UNICROW, Unicrow__factory.abi, provider);
     const claimContract = new Contract(CLAIM, UnicrowClaim__factory.abi, provider);
     let eventFound = false;
+    let sellerUsdcReceived = 0n;
     const expectedTo = action === "claim" ? CLAIM : UNICROW;
     if (!tx.to || getAddress(tx.to) !== getAddress(expectedTo)) return NextResponse.json({ error: "وجهة المعاملة لا تطابق عقد Unicrow المتوقع." }, { status: 409 });
 
     for (const log of receipt.logs) {
+      if (action === "claim" && getAddress(log.address) === getAddress(USDC)) {
+        try { const transfer = ERC20_EVENTS.parseLog({ topics: [...log.topics], data: log.data }); if (transfer?.name === "Transfer" && getAddress(transfer.args.to) === getAddress(row.seller_wallet)) sellerUsdcReceived += transfer.args.value as bigint; } catch {}
+      }
       if (getAddress(log.address) !== getAddress(expectedTo)) continue;
       try {
         const parsed = (action === "claim" ? claimContract.interface : unicrow.interface).parseLog({ topics: [...log.topics], data: log.data });
@@ -101,6 +106,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       } catch { /* Ignore logs from unrelated events. */ }
     }
     if (!eventFound) return NextResponse.json({ error: "لم نعثر على حدث Unicrow المطابق داخل إيصال المعاملة." }, { status: 409 });
+    if (action === "claim" && sellerUsdcReceived <= 0n) return NextResponse.json({ error: "تم العثور على حدث المطالبة لكن إيصال المعاملة لا يثبت تحويل USDC إلى محفظة المستقل." }, { status: 409 });
 
     const chainData = await unicrow.getAllEscrowData(escrowId);
     const onchain = chainData.escrow;
