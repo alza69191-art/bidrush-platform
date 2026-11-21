@@ -107,6 +107,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (getAddress(onchain.buyer) !== getAddress(row.buyer_wallet) ||
         getAddress(onchain.seller) !== getAddress(row.seller_wallet) ||
         getAddress(onchain.currency) !== getAddress(USDC) ||
+        getAddress(chainData.token.address_) !== getAddress(USDC) ||
+        Number(chainData.token.decimals) !== 6 || String(chainData.token.symbol) !== "USDC" ||
         onchain.amount !== parseUnits(String(row.amount), 6) ||
         onchain.paymentReference !== String(taskId)) {
       return NextResponse.json({ error: "بيانات الضمان على الشبكة لا تطابق المهمة والمبلغ والمحافظ والرمز في BidRush." }, { status: 409 });
