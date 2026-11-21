@@ -17,7 +17,7 @@ const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
 async function loadEscrow(taskId: string) {
   const [rows] = await db().execute(
-    "SELECT e.*,t.title,t.currency AS task_currency,bu.wallet_address AS buyer_wallet,su.wallet_address AS seller_wallet FROM escrow_transactions e JOIN tasks t ON t.id=e.task_id JOIN users bu ON bu.id=e.client_id JOIN users su ON su.id=e.freelancer_id WHERE e.task_id=? LIMIT 1",
+    "SELECT e.*,t.title,t.currency AS task_currency FROM escrow_transactions e JOIN tasks t ON t.id=e.task_id WHERE e.task_id=? LIMIT 1",
     [taskId],
   );
   return (rows as any[])[0] || null;
