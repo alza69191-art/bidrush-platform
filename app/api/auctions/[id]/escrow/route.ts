@@ -88,7 +88,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const unicrow = new Contract(UNICROW, Unicrow__factory.abi, provider);
     const claimContract = new Contract(CLAIM, UnicrowClaim__factory.abi, provider);
     let eventFound = false;
-    let sellerUsdcReceived = 0n;
+    let sellerUsdcReceived = BigInt(0);
     const expectedTo = action === "claim" ? CLAIM : UNICROW;
     if (!tx.to || getAddress(tx.to) !== getAddress(expectedTo)) return NextResponse.json({ error: "وجهة المعاملة لا تطابق عقد Unicrow المتوقع." }, { status: 409 });
 
@@ -106,7 +106,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       } catch { /* Ignore logs from unrelated events. */ }
     }
     if (!eventFound) return NextResponse.json({ error: "لم نعثر على حدث Unicrow المطابق داخل إيصال المعاملة." }, { status: 409 });
-    if (action === "claim" && sellerUsdcReceived <= 0n) return NextResponse.json({ error: "تم العثور على حدث المطالبة لكن إيصال المعاملة لا يثبت تحويل USDC إلى محفظة المستقل." }, { status: 409 });
+    if (action === "claim" && sellerUsdcReceived <= BigInt(0)) return NextResponse.json({ error: "تم العثور على حدث المطالبة لكن إيصال المعاملة لا يثبت تحويل USDC إلى محفظة المستقل." }, { status: 409 });
 
     const chainData = await unicrow.getAllEscrowData(escrowId);
     const onchain = chainData.escrow;
