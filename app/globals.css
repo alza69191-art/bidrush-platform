@@ -12,3 +12,38 @@
 
 /* Standalone admin console */
 .admin-console{background:#f4f6fa;color:#171d35;min-height:100vh}.admin-console *{box-sizing:border-box}.admin-console .shell{min-height:100vh;display:grid;grid-template-columns:245px 1fr}.admin-console .side{background:#171d35;color:white;padding:25px 16px}.admin-console .brand{font-size:25px;font-weight:800;margin:8px 10px 30px}.admin-console .brand span{color:#ff6b35}.admin-console .nav{display:grid;gap:8px}.admin-console .nav button{border:0;text-align:right;color:#d9ddec;background:transparent;padding:13px 14px;border-radius:9px}.admin-console .nav button.active,.admin-console .nav button:hover{background:#2a3352;color:white}.admin-console .main{padding:30px;min-width:0}.admin-console .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}.admin-console .top h1{margin:0;font-size:25px}.admin-console .muted{color:#798198;font-size:13px}.admin-console .btn{border:0;border-radius:9px;padding:10px 14px;font-weight:700}.admin-console .primary{background:#ff6b35;color:white}.admin-console .secondary{background:#eef0f5;color:#303953}.admin-console .danger{background:#fff0ec;color:#c13b21}.admin-console .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-bottom:20px}.admin-console .stat,.admin-console .panel{background:white;border:1px solid #e9ebf1;border-radius:15px;padding:19px}.admin-console .stat small{color:#7b8295}.admin-console .stat strong{display:block;font-size:28px;margin-top:8px}.admin-console .panel{margin-bottom:18px;overflow:auto}.admin-console .panel h2{font-size:17px;margin:0 0 14px}.admin-console table{width:100%;border-collapse:collapse;min-width:680px}.admin-console th,.admin-console td{text-align:right;padding:12px 10px;border-bottom:1px solid #eff0f4;font-size:13px;vertical-align:middle}.admin-console th{color:#798198;font-weight:600}.admin-console td .btn{margin:2px;font-size:12px;padding:6px 9px}.admin-console .badge{background:#f0f2f7;padding:4px 8px;border-radius:20px;font-size:11px}.admin-console .badge.orange{background:#fff0e9;color:#c34b24}.admin-console .login{min-height:100vh;display:grid;place-items:center;padding:20px}.admin-console .loginbox{width:min(420px,100%);background:white;border:1px solid #e7e9ef;border-radius:18px;padding:32px;box-shadow:0 15px 50px #20294312}.admin-console .field{display:grid;gap:7px;margin:16px 0}.admin-console .field input{border:1px solid #dfe3ec;border-radius:9px;padding:12px}.admin-console .error{background:#fff0ed;color:#b8321b;padding:10px;border-radius:8px;font-size:13px}.admin-console .thread{display:grid;gap:10px;max-height:360px;overflow:auto;margin:14px 0}.admin-console .bubble{background:#f3f5f9;padding:12px;border-radius:10px;white-space:pre-wrap}.admin-console .bubble.admin{background:#fff0e9}.admin-console .reply{display:flex;gap:8px}.admin-console .reply input{flex:1;border:1px solid #dfe3ec;border-radius:9px;padding:11px}.admin-console .empty{padding:30px;text-align:center;color:#8990a2}.admin-console select{padding:7px;border:1px solid #e1e4eb;border-radius:8px;background:white}@media(max-width:850px){.admin-console .shell{grid-template-columns:1fr}.admin-console .side{padding:12px}.admin-console .brand{margin:8px 8px 12px}.admin-console .nav{grid-template-columns:repeat(4,1fr)}.admin-console .nav button{text-align:center;padding:9px 4px;font-size:12px}.admin-console .main{padding:16px}.admin-console .grid{grid-template-columns:1fr}.admin-console .top{align-items:flex-start;gap:10px;flex-direction:column}}
+
+
+/* BidRush marketplace cards, offer actions and animated brand mark */
+.auction-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:stretch}
+.auction-tile{min-width:0;background:#fff;border:1px solid #e8eaf0;border-radius:18px;overflow:hidden;box-shadow:0 8px 26px #171d3508;transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.auction-tile:hover{transform:translateY(-4px);border-color:#ffc4ad;box-shadow:0 18px 42px #171d3512}
+.auction-tile-title{font-size:16px;line-height:1.8;min-height:62px;margin:0;padding:17px 18px 10px;color:#171d35}
+.auction-tile-image-link,.auction-tile-image-placeholder{display:flex;width:100%;height:190px;background:#f1f2f6;overflow:hidden}
+.auction-tile-image{width:100%;height:100%;object-fit:cover;transition:transform .35s ease}
+.auction-tile:hover .auction-tile-image{transform:scale(1.035)}
+.auction-tile-image-placeholder{flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#7b8295;background:linear-gradient(135deg,#f8f8fb,#fff0e8)}
+.auction-tile-image-placeholder span{font-weight:800;font-size:22px;color:#171d35;direction:ltr}
+.auction-tile-image-placeholder small{font-size:10px}
+.auction-tile-body{padding:16px 18px 18px}
+.auction-tile-meta{display:flex;align-items:center;justify-content:space-between}
+.auction-live-label{display:flex;align-items:center;gap:7px;color:#15996a;font-size:10px;font-weight:700}
+.auction-live-label i{width:7px;height:7px;background:#20bd82;border-radius:50%;box-shadow:0 0 0 4px #20bd821c}
+.auction-tile-description{font-size:11px;line-height:2;color:#73788b;min-height:66px;margin:13px 0}
+.auction-tile-facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid #f0f1f5;border-bottom:1px solid #f0f1f5;padding:13px 0}
+.auction-tile-facts div{display:grid;gap:6px;min-width:0}
+.auction-tile-facts small,.auction-tile-footer small{font-size:9px;color:#858a9a}
+.auction-tile-facts b{font-size:13px;overflow-wrap:anywhere}
+.auction-tile-footer{padding:12px 0 4px}
+.auction-tile-actions{display:flex;gap:9px;margin-top:10px}
+.auction-tile-actions .btn{flex:1;white-space:nowrap}
+.auction-page-heading{margin-bottom:30px}
+.auction-empty{grid-column:1/-1}
+#offers,#send-offer{scroll-margin-top:24px}
+.side-brand,.brand-mark,.auth-brand{position:relative;isolation:isolate}
+.side-brand img,.brand-mark img,.auth-brand img{animation:bidrushLogoGlow 3.2s ease-in-out infinite;filter:drop-shadow(0 0 5px #ff9a4d66)}
+.side-brand:after,.brand-mark:after,.auth-brand:after{content:"";position:absolute;top:5px;bottom:5px;left:-130%;width:55%;pointer-events:none;background:linear-gradient(110deg,transparent 5%,#fff0 25%,#fff9 48%,#ffd18a88 55%,transparent 78%);transform:skewX(-22deg);animation:bidrushLogoShine 4.8s ease-in-out infinite}
+@keyframes bidrushLogoShine{0%,58%{left:-130%;opacity:0}65%{opacity:1}88%,100%{left:145%;opacity:0}}
+@keyframes bidrushLogoGlow{0%,100%{filter:drop-shadow(0 0 3px #ff9a4d33)}50%{filter:drop-shadow(0 0 10px #ff9a4d99) brightness(1.08)}}
+@media(max-width:1050px){.auction-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.auction-grid{grid-template-columns:1fr}.auction-tile-image-link,.auction-tile-image-placeholder{height:205px}.auction-tile-title{min-height:0}.auction-tile-actions .btn{padding:0 10px;font-size:11px}}
