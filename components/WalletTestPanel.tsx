@@ -32,7 +32,20 @@ export default function WalletTestPanel(){
  async function saveWallet(){
   if(chain.toLowerCase()!==TARGET_CHAIN_ID){setStatus("حوّل الشبكة إلى Base Sepolia قبل حفظ عنوان المحفظة.");return;}
   setBusy(true);
-  try{const r=await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({address})});const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حفظ العنوان.");setSaved(true);setStatus("تم ربط عنوان المحفظة بحساب BidRush. لم يتم إرسال أي معاملة.");}
+  try{
+   const candidates=window.ethereum?.providers?.length?window.ethereum.providers:[window.ethereum];
+   const provider=candidates.find(p=>(p as any)?.isRabby)||window.ethereum;
+   if(!provider)throw new Error("لم نعثر على Rabby.");
+   const challengeResponse=await fetch("/api/wallet",{cache:"no-store"});
+   const challenge=await challengeResponse.json();
+   if(!challengeResponse.ok)throw new Error(challenge.error||"تعذر بدء التحقق.");
+   const message="BidRush wallet verification\\nAddress: "+address+"\\nChain ID: 84532\\nNonce: "+challenge.nonce;
+   const hex="0x"+Array.from(new TextEncoder().encode(message)).map(x=>x.toString(16).padStart(2,"0")).join("");
+   const signature=await provider.request({method:"personal_sign",params:[hex,address]}) as string;
+   const r=await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({address,nonce:challenge.nonce,signature})});
+   const d=await r.json();if(!r.ok)throw new Error(d.error||"تعذر حفظ العنوان.");
+   setSaved(true);setStatus("تم التحقق من ملكية العنوان وربطه بحساب BidRush. لم يتم إرسال أي معاملة مالية.");
+  }
   catch(e){setStatus(e instanceof Error?e.message:"تعذر حفظ العنوان.");}
   finally{setBusy(false);}
  }
