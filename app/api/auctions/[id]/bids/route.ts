@@ -42,6 +42,12 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
       return NextResponse.json({error:"السعر يجب أن يكون موجباً وبحد أقصى منزلتين عشريتين."},{status:400});
     }
 
+    await ensureAdminSchema();
+    const [walletRows]=await db().execute("SELECT wallet_address FROM users WHERE id=? LIMIT 1",[String(session.sub)]);
+    if(!(walletRows as any[])[0]?.wallet_address){
+      return NextResponse.json({error:"اربط محفظة Rabby وتحقق من ملكيتها قبل تقديم العرض."},{status:409});
+    }
+
     connection=await db().getConnection();
     await connection.beginTransaction();
 
