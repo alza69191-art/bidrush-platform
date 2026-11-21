@@ -19,7 +19,7 @@ function imageType(b:Buffer):string|null{
 }
 export async function GET(){
  try{await ensureAdminSchema();await db().execute("UPDATE tasks SET status='expired' WHERE status='live' AND auction_ends_at<=UTC_TIMESTAMP()");
- const [rows]=await db().query("SELECT t.id,t.title,t.description,t.category,t.currency,t.max_budget,t.deadline_at,t.auction_starts_at,t.auction_ends_at,UNIX_TIMESTAMP(t.auction_ends_at)*1000 AS auction_ends_at_ms,t.status,t.created_at,(t.image_key IS NOT NULL OR t.image_data IS NOT NULL) AS has_image,u.display_name AS client_name,(SELECT COUNT(*) FROM bids b WHERE b.task_id=t.id) AS bids_count,(SELECT MIN(amount) FROM bids b WHERE b.task_id=t.id) AS best_bid FROM tasks t JOIN users u ON u.id=t.client_id WHERE t.status='live' AND t.auction_ends_at>UTC_TIMESTAMP() ORDER BY t.auction_ends_at ASC LIMIT 100");
+ const [rows]=await db().query("SELECT t.id,t.title,t.description,t.category,t.currency,t.max_budget,t.deadline_at,t.auction_starts_at,t.auction_ends_at,UNIX_TIMESTAMP(t.auction_ends_at)*1000 AS auction_ends_at_ms,t.status,t.created_at,(t.image_key IS NOT NULL OR t.image_data IS NOT NULL) AS has_image,u.display_name AS client_name,(SELECT COUNT(*) FROM bids b WHERE b.task_id=t.id) AS bids_count,(SELECT MIN(amount) FROM bids b WHERE b.task_id=t.id) AS best_bid FROM tasks t JOIN users u ON u.id=t.client_id WHERE t.status='live' AND t.deleted_at IS NULL AND t.auction_ends_at>UTC_TIMESTAMP() ORDER BY t.auction_ends_at ASC LIMIT 100");
  return NextResponse.json({auctions:rows});}catch(e){console.error("auctions_list_failed",e);return NextResponse.json({error:"تعذر تحميل المزادات."},{status:500});}
 }
 export async function POST(req:Request){
