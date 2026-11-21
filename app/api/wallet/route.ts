@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAddress } from "ethers";
+import { randomBytes } from "node:crypto";
+import { getAddress, verifyMessage } from "ethers";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { ensureAdminSchema } from "@/lib/admin-schema";
@@ -12,10 +13,12 @@ export async function GET() {
   if (!session?.sub) return NextResponse.json({ error: "سجّل الدخول." }, { status: 401 });
   try {
     await ensureAdminSchema();
+    const nonce = randomBytes(18).toString("hex");
+    await db().execute("UPDATE users SET wallet_nonce=?,wallet_nonce_created_at=UTC_TIMESTAMP() WHERE id=?", [nonce, String(session.sub)]);
     const [rows] = await db().execute("SELECT wallet_address FROM users WHERE id=? LIMIT 1", [String(session.sub)]);
-    return NextResponse.json({ walletAddress: (rows as any[])[0]?.wallet_address || null });
+    return NextResponse.json({ nonce, walletAddress: (rows as any[])[0]?.wallet_address || null, chainId: 84532 });
   } catch {
-    return NextResponse.json({ error: "تعذر قراءة عنوان المحفظة." }, { status: 500 });
+    return NextResponse.json({ error: "تعذر إنشاء تحدي التحقق." }, { status: 500 });
   }
 }
 
@@ -24,13 +27,25 @@ export async function POST(req: Request) {
   if (!session?.sub) return NextResponse.json({ error: "سجّل الدخول." }, { status: 401 });
   try {
     const body = await req.json();
-    const raw = String(body.address || "");
-    let address: string;
-    try { address = getAddress(raw); } catch { return NextResponse.json({ error: "عنوان المحفظة غير صالح." }, { status: 400 }); }
+    const address = getAddress(String(body.address || ""));
+    const nonce = String(body.nonce || "");
+    const signature = String(body.signature || "");
+    if (!/^[a-f0-9]{36}$/.test(nonce) || !/^0x[0-9a-fA-F]{130}$/.test(signature)) {
+      return NextResponse.json({ error: "بيانات التوقيع غير صالحة." }, { status: 400 });
+    }
     await ensureAdminSchema();
-    await db().execute("UPDATE users SET wallet_address=? WHERE id=?", [address, String(session.sub)]);
-    return NextResponse.json({ ok: true, walletAddress: address });
-  } catch {
-    return NextResponse.json({ error: "تعذر حفظ عنوان المحفظة." }, { status: 500 });
+    const [rows] = await db().execute(
+      "SELECT wallet_nonce FROM users WHERE id=? AND wallet_nonce=? AND wallet_nonce_created_at>=UTC_TIMESTAMP()-INTERVAL 5 MINUTE LIMIT 1",
+      [String(session.sub), nonce],
+    );
+    if (!(rows as any[]).length) return NextResponse.json({ error: "انتهت صلاحية التحدي. أعد المحاولة." }, { status: 409 });
+    const message = "BidRush wallet verification\nAddress: " + address + "\nChain ID: 84532\nNonce: " + nonce;
+    const recovered = getAddress(verifyMessage(message, signature));
+    if (recovered !== address) return NextResponse.json({ error: "التوقيع لا يثبت ملكية هذا العنوان." }, { status: 403 });
+    await db().execute("UPDATE users SET wallet_address=?,wallet_nonce=NULL,wallet_nonce_created_at=NULL WHERE id=? AND wallet_nonce=?", [address, String(session.sub), nonce]);
+    return NextResponse.json({ ok: true, walletAddress: address, chainId: 84532 });
+  } catch (error) {
+    if (error instanceof Error && /invalid address/i.test(error.message)) return NextResponse.json({ error: "عنوان المحفظة غير صالح." }, { status: 400 });
+    return NextResponse.json({ error: "تعذر التحقق من ملكية المحفظة." }, { status: 500 });
   }
 }
