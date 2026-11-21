@@ -80,7 +80,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const receipt = await provider.getTransactionReceipt(txHash);
     const tx = await provider.getTransaction(txHash);
     if (!receipt || !tx || receipt.status !== 1) return NextResponse.json({ error: "المعاملة غير مؤكدة أو فشلت على الشبكة." }, { status: 409 });
-    if (receipt.confirmations < 1) return NextResponse.json({ error: "المعاملة لم تحصل على تأكيد بعد." }, { status: 409 });
 
     const expectedFrom = getAddress(action === "claim" ? row.seller_wallet : row.buyer_wallet);
     if (getAddress(tx.from) !== expectedFrom) return NextResponse.json({ error: "مرسل المعاملة لا يطابق المحفظة الموثقة لصاحب العملية." }, { status: 403 });
