@@ -5,7 +5,7 @@ export async function ensureAdminSchema(){
  if(ready)return;
  const pool=db();
  if(!(await hasColumn("users","deleted_at")))await pool.execute("ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP NULL");
- for(const [column,type] of [["image_data","MEDIUMBLOB NULL"],["image_mime","VARCHAR(40) NULL"],["image_name","VARCHAR(180) NULL"]] as const){if(!(await hasColumn("tasks",column)))await pool.execute("ALTER TABLE tasks ADD COLUMN "+column+" "+type);}
+ for(const [column,type] of [["image_data","MEDIUMBLOB NULL"],["image_mime","VARCHAR(100) NULL"],["image_name","VARCHAR(255) NULL"],["image_key","VARCHAR(500) NULL"]] as const){if(!(await hasColumn("tasks",column)))await pool.execute("ALTER TABLE tasks ADD COLUMN "+column+" "+type);}
  const [statusRows]=await pool.execute("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tasks' AND COLUMN_NAME='status'");
  if((statusRows as any[]).length&&!(String((statusRows as any[])[0].COLUMN_TYPE).includes("expired")))await pool.execute("ALTER TABLE tasks MODIFY status ENUM('draft','scheduled','live','awarded','in_progress','submitted','completed','cancelled','expired','disputed') NOT NULL DEFAULT 'draft'");
  await pool.execute(`CREATE TABLE IF NOT EXISTS task_extensions(id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,task_id CHAR(36) NOT NULL,actor_id CHAR(36) NOT NULL,minutes_added SMALLINT UNSIGNED NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX idx_extensions_task(task_id),FOREIGN KEY(task_id) REFERENCES tasks(id),FOREIGN KEY(actor_id) REFERENCES users(id))`);
