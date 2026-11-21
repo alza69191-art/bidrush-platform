@@ -73,8 +73,8 @@ export default function WalletTestPanel(){
   }catch(e){setStatus(e instanceof Error?e.message:"تعذر تغيير الشبكة.");}
  }
  return <section style={{border:"1px solid #e2e8f0",borderRadius:16,padding:22,marginTop:24,background:"#fff"}}>
-  <h2 style={{fontSize:20,fontWeight:700}}>اتصال آمن — بدون معاملات</h2>
-  <p style={{color:"#64748b",lineHeight:1.8}}>سنقرأ عنوان الحساب ومعرّف الشبكة فقط. لا نطلب صلاحية إرسال الأموال.</p>
+  <h2 style={{fontSize:20,fontWeight:700}}>اتصال آمن — توقيع تحقق فقط</h2>
+  <p style={{color:"#64748b",lineHeight:1.8}}>نقرأ عنوان الحساب والشبكة، ونطلب توقيع رسالة تحقق مجانية لإثبات ملكية العنوان. لا ننفذ معاملة بلوكشين ولا نطلب صلاحية إنفاق USDC.</p>
   <button onClick={connect} disabled={busy} style={{background:"#ea8a19",color:"#fff",border:0,borderRadius:10,padding:"12px 20px",fontWeight:700,cursor:"pointer"}}>{busy?"جارٍ الاتصال…":"اتصال بمحفظة Rabby"}</button>
   {address&&<div style={{marginTop:18,lineHeight:2}}><div><b>العنوان المتصل:</b> <code dir="ltr">{shortAddress(address)}</code></div><div><b>Chain ID:</b> <code dir="ltr">{chain}</code></div><div><b>الشبكة المطلوبة:</b> Base Sepolia (84532)</div>{chain.toLowerCase()===TARGET_CHAIN_ID&&<button onClick={saveWallet} disabled={busy||saved} style={{marginTop:12,marginInlineStart:8,border:0,background:saved?"#e2e8f0":"#ea8a19",color:saved?"#334155":"#fff",padding:"9px 14px",borderRadius:8,cursor:"pointer"}}>{saved?"تم حفظ العنوان":"حفظ العنوان في حساب BidRush"}</button>}{chain.toLowerCase()!==TARGET_CHAIN_ID&&<button onClick={switchNetwork} style={{marginTop:12,border:"1px solid #cbd5e1",background:"#f8fafc",padding:"9px 14px",borderRadius:8,cursor:"pointer"}}>التبديل إلى شبكة الاختبار</button>}</div>}
   <p role="status" style={{marginTop:18,padding:12,borderRadius:8,background:"#f8fafc",lineHeight:1.8}}>{status}</p>
