@@ -72,9 +72,10 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
     }
 
     const [settingsRows]=await connection.execute(
-      "SELECT provider,network,token FROM escrow_settings WHERE id=1 FOR UPDATE"
+      "SELECT provider,network,token,max_hold_days FROM escrow_settings WHERE id=1 FOR UPDATE"
     );
-    const settings=(settingsRows as any[])[0]||{provider:"unicrow",network:"base-sepolia",token:"USDC"};
+    const settings=(settingsRows as any[])[0]||{provider:"unicrow",network:"base-sepolia",token:"USDC",max_hold_days:3};
+    const challengePeriodSeconds=Math.max(86400,Math.min(365*86400,Math.trunc(Number(settings.max_hold_days||3)*86400)));
 
     // Platform and arbitrator fees remain zero until testnet end-to-end tests pass.
     const commissionBps=0;
@@ -86,12 +87,12 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
       [bid.id,id]
     );
     await connection.execute(
-      "INSERT INTO escrow_transactions(id,task_id,bid_id,client_id,freelancer_id,amount,currency,commission_bps,commission_amount,provider,network,token,buyer_wallet,seller_wallet,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'awaiting_funding')",
-      [escrowId,id,bid.id,String(task.client_id),String(bid.freelancer_id),Number(bid.amount),String(task.currency||"USD"),commissionBps,commissionAmount,String(settings.provider||"unicrow"),String(settings.network||"base-sepolia"),String(settings.token||"USDC"),String(task.client_wallet),String(bid.freelancer_wallet)]
+      "INSERT INTO escrow_transactions(id,task_id,bid_id,client_id,freelancer_id,amount,currency,commission_bps,commission_amount,provider,network,token,challenge_period_seconds,buyer_wallet,seller_wallet,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'awaiting_funding')",
+      [escrowId,id,bid.id,String(task.client_id),String(bid.freelancer_id),Number(bid.amount),String(task.currency||"USD"),commissionBps,commissionAmount,String(settings.provider||"unicrow"),String(settings.network||"base-sepolia"),String(settings.token||"USDC"),challengePeriodSeconds,String(task.client_wallet),String(bid.freelancer_wallet)]
     );
     await connection.execute(
       "INSERT INTO escrow_events(id,escrow_id,actor_id,event_type,description,metadata) VALUES(?,?,?,'escrow_created',?,?)",
-      [randomUUID(),escrowId,String(session.sub),"تم إنشاء سجل متابعة داخلي بانتظار تمويل الاحتجاز على شبكة الاختبار؛ لم يتم تحويل أي أموال بعد.",JSON.stringify({amount:Number(bid.amount),commissionBps,commissionAmount,network:String(settings.network||"base-sepolia")})]
+      [randomUUID(),escrowId,String(session.sub),"تم إنشاء سجل متابعة داخلي بانتظار تمويل الاحتجاز على شبكة الاختبار؛ لم يتم تحويل أي أموال بعد.",JSON.stringify({amount:Number(bid.amount),commissionBps,commissionAmount,network:String(settings.network||"base-sepolia"),challengePeriodSeconds})]
     );
     await connection.execute(
       "INSERT INTO notifications(id,user_id,type,title,body,href) VALUES(?,?,?,?,?,?)",
@@ -103,7 +104,7 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
     );
 
     await connection.commit();
-    return NextResponse.json({ok:true,escrowId,status:"awaiting_funding",network:String(settings.network||"base-sepolia")});
+    return NextResponse.json({ok:true,escrowId,status:"awaiting_funding",network:String(settings.network||"base-sepolia"),challengePeriodSeconds});
   }catch(error){
     if(connection)await connection.rollback().catch(()=>{});
     console.error("auction_award_failed",error);
