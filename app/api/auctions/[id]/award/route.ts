@@ -49,13 +49,17 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
     }
 
     const [bidRows]=await connection.execute(
-      "SELECT id,freelancer_id,amount FROM bids WHERE id=? AND task_id=? FOR UPDATE",
+      "SELECT b.id,b.freelancer_id,b.amount,u.wallet_address AS freelancer_wallet FROM bids b JOIN users u ON u.id=b.freelancer_id WHERE b.id=? AND b.task_id=? FOR UPDATE",
       [bidId,id]
     );
     const bid=(bidRows as any[])[0];
     if(!bid){
       await connection.rollback();
       return NextResponse.json({error:"العرض غير موجود في هذا المزاد."},{status:404});
+    }
+    if(!bid.freelancer_wallet){
+      await connection.rollback();
+      return NextResponse.json({error:"يجب على المستقل ربط محفظة Rabby والتحقق من ملكيتها قبل اختياره."},{status:409});
     }
     if(String(bid.freelancer_id)===String(task.client_id)){
       await connection.rollback();
