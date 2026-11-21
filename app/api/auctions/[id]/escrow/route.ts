@@ -9,11 +9,15 @@ import { ensureAdminSchema } from "@/lib/admin-schema";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CHAIN_ID = 84532;
-const RPC = "https://sepolia.base.org";
-const UNICROW = "0x32fab9f28724c1c5832d5d6830afe498f8abdaac";
-const CLAIM = "0x01d612617028f14db6c6f4c00b2a9b4107a90f7a";
-const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const NETWORKS = {
+  "base-sepolia": { chainId: 84532, rpc: "https://sepolia.base.org", unicrow: "0x32fab9f28724c1c5832d5d6830afe498f8abdaac", claim: "0x01d612617028f14db6c6f4c00b2a9b4107a90f7a", usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" },
+  "base": { chainId: 8453, rpc: "https://mainnet.base.org", unicrow: "0x19EbA0BE87dF312d9041240ddE468507adaC9e0A", claim: "0x063d6472df3FdD1cec9B00cac29bcd935511f451", usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" },
+} as const;
+function networkConfig(network: string) {
+  const config = NETWORKS[network as keyof typeof NETWORKS];
+  if (!config) throw new Error("Unsupported escrow network");
+  return config;
+}
 const ERC20_EVENTS = new Interface(["event Transfer(address indexed from,address indexed to,uint256 value)"]);
 
 async function loadEscrow(taskId: string) {
@@ -37,9 +41,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     let challengePeriodEnd: number | null = null;
     let onchainClaimed = false;
     if (row.provider_reference !== null && row.provider_reference !== undefined) {
-      const readProvider = new JsonRpcProvider(RPC, CHAIN_ID, { staticNetwork: true });
+      const config = networkConfig(String(row.network));
+      const readProvider = new JsonRpcProvider(config.rpc, config.chainId, { staticNetwork: true });
       try {
-        const contract = new Contract(UNICROW, Unicrow__factory.abi, readProvider);
+        const contract = new Contract(config.unicrow, Unicrow__factory.abi, readProvider);
         const data = await contract.getAllEscrowData(String(row.provider_reference));
         challengePeriodEnd = Number(data.escrow.challengePeriodEnd);
         onchainClaimed = Number(data.escrow.claimed) !== 0;
@@ -51,6 +56,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         status: row.status, network: row.network, token: row.token, providerReference: row.provider_reference,
         depositTxHash: row.deposit_tx_hash, releaseTxHash: row.release_tx_hash, claimTxHash: row.claim_tx_hash,
         buyerWallet: row.buyer_wallet, sellerWallet: row.seller_wallet,
+        commissionBps: Number(row.commission_bps || 0), commissionAmount: String(row.commission_amount || "0"),
+        platformWalletAddress: row.platform_wallet_address || null,
         client: String(row.client_id) === String(session.sub),
         challengePeriodSeconds: Number(row.challenge_period_seconds || 259200),
         challengePeriodEnd, onchainClaimed,
@@ -66,7 +73,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!session?.sub) return NextResponse.json({ error: "سجّل الدخول." }, { status: 401 });
   const { id: taskId } = await params;
   let connection: any;
-  const provider = new JsonRpcProvider(RPC, CHAIN_ID, { staticNetwork: true });
+  let provider: JsonRpcProvider | null = null;
   try {
     await ensureAdminSchema();
     const body = await req.json();
@@ -83,13 +90,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const isSeller = String(row.freelancer_id) === String(session.sub);
     if ((action === "fund" || action === "release") && !isClient) return NextResponse.json({ error: "هذه العملية متاحة لصاحب المهمة فقط." }, { status: 403 });
     if (action === "claim" && !isSeller) return NextResponse.json({ error: "المطالبة متاحة للمستقل المستفيد فقط." }, { status: 403 });
-    if (row.network !== "base-sepolia" || row.provider !== "unicrow" || String(row.token).toUpperCase() !== "USDC") {
-      return NextResponse.json({ error: "إعدادات الشبكة أو مزود الوساطة لا تطابق بيئة الاختبار." }, { status: 409 });
+    if (!["base-sepolia","base"].includes(String(row.network)) || row.provider !== "unicrow" || String(row.token).toUpperCase() !== "USDC") {
+      return NextResponse.json({ error: "إعدادات الشبكة أو مزود الوساطة غير مدعومة." }, { status: 409 });
     }
+    const config = networkConfig(String(row.network));
+    provider = new JsonRpcProvider(config.rpc, config.chainId, { staticNetwork: true });
     if (!row.buyer_wallet || !row.seller_wallet) return NextResponse.json({ error: "يجب ربط محفظتي العميل والمستقل والتحقق منهما أولاً." }, { status: 409 });
 
     const network = await provider.getNetwork();
-    if (Number(network.chainId) !== CHAIN_ID) return NextResponse.json({ error: "مزود الشبكة ليس Base Sepolia." }, { status: 503 });
+    if (Number(network.chainId) !== config.chainId) return NextResponse.json({ error: "مزود الشبكة لا يطابق شبكة الضمان." }, { status: 503 });
     const receipt = await provider.getTransactionReceipt(txHash);
     const tx = await provider.getTransaction(txHash);
     if (!receipt || !tx || receipt.status !== 1) return NextResponse.json({ error: "المعاملة غير مؤكدة أو فشلت على الشبكة." }, { status: 409 });
@@ -97,17 +106,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const expectedFrom = getAddress(action === "claim" ? row.seller_wallet : row.buyer_wallet);
     if (getAddress(tx.from) !== expectedFrom) return NextResponse.json({ error: "مرسل المعاملة لا يطابق المحفظة الموثقة لصاحب العملية." }, { status: 403 });
 
-    const unicrow = new Contract(UNICROW, Unicrow__factory.abi, provider);
-    const claimContract = new Contract(CLAIM, UnicrowClaim__factory.abi, provider);
+    const unicrow = new Contract(config.unicrow, Unicrow__factory.abi, provider);
+    const claimContract = new Contract(config.claim, UnicrowClaim__factory.abi, provider);
     let eventFound = false;
     let sellerUsdcReceived = BigInt(0);
     const configuredClaim = getAddress(await unicrow.unicrowClaim());
-    if (configuredClaim !== getAddress(CLAIM)) return NextResponse.json({ error: "عنوان عقد Claim لا يطابق عنوان Unicrow المنشور." }, { status: 503 });
-    const expectedTo = action === "claim" ? configuredClaim : UNICROW;
+    if (configuredClaim !== getAddress(config.claim)) return NextResponse.json({ error: "عنوان عقد Claim لا يطابق عنوان Unicrow المنشور." }, { status: 503 });
+    const expectedTo = action === "claim" ? configuredClaim : config.unicrow;
     if (!tx.to || getAddress(tx.to) !== getAddress(expectedTo)) return NextResponse.json({ error: "وجهة المعاملة لا تطابق عقد Unicrow المتوقع." }, { status: 409 });
 
     for (const log of receipt.logs) {
-      if (action === "claim" && getAddress(log.address) === getAddress(USDC)) {
+      if (action === "claim" && getAddress(log.address) === getAddress(config.usdc)) {
         try { const transfer = ERC20_EVENTS.parseLog({ topics: [...log.topics], data: log.data }); if (transfer?.name === "Transfer" && getAddress(transfer.args.to) === getAddress(row.seller_wallet)) sellerUsdcReceived += transfer.args.value as bigint; } catch {}
       }
       if (getAddress(log.address) !== getAddress(expectedTo)) continue;
@@ -135,6 +144,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         getAddress(chainData.token.address_) !== getAddress(USDC) ||
         Number(chainData.token.decimals) !== 6 || String(chainData.token.symbol) !== "USDC" ||
         onchain.amount !== parseUnits(String(row.amount), 6) ||
+        getAddress(onchain.marketplace) !== getAddress(row.platform_wallet_address || ZeroAddress) ||
+        Number(onchain.marketplaceFee) !== Number(row.commission_bps || 0) ||
         onchain.paymentReference !== String(taskId)) {
       return NextResponse.json({ error: "بيانات الضمان على الشبكة لا تطابق المهمة والمبلغ والمحافظ والرمز في BidRush." }, { status: 409 });
     }
@@ -177,7 +188,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await connection.execute("INSERT INTO escrow_events(id,escrow_id,actor_id,event_type,description,metadata) VALUES(?,?,?,?,?,?)", [
       randomUUID(), row.id, String(session.sub), action === "fund" ? "onchain_funded" : action === "release" ? "onchain_released" : "onchain_claimed",
       action === "fund" ? "تم التحقق من حدث Pay وبيانات الضمان على Base Sepolia." : action === "release" ? "تم التحقق من حدث Release على Base Sepolia." : "تم التحقق من حدث Claim على Base Sepolia.",
-      JSON.stringify({ txHash, chainId: CHAIN_ID, escrowId }),
+      JSON.stringify({ txHash, chainId: config.chainId, escrowId }),
     ]);
     const notifyUser = action === "fund" ? row.freelancer_id : action === "release" ? row.freelancer_id : row.client_id;
     await connection.execute("INSERT INTO notifications(id,user_id,type,title,body,href) VALUES(?,?,?,?,?,?)", [
@@ -194,6 +205,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: error instanceof Error ? error.message : "تعذر التحقق من معاملة الوساطة." }, { status: 500 });
   } finally {
     if (connection) connection.release();
-    await provider.destroy();
+    if (provider) await provider.destroy();
   }
 }
