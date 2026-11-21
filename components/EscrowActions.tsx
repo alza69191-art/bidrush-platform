@@ -26,6 +26,7 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [now, setNow] = useState(Date.now());
 
   const refresh = useCallback(async () => {
     try {
@@ -38,6 +39,7 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
   }, [taskId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(timer); }, []);
 
   async function connectAndVerify() {
     const wallet = injectedWallet();
@@ -151,17 +153,21 @@ export default function EscrowActions({ taskId, taskStatus }: { taskId: string; 
   if (loading) return <div className="notice">جارٍ تحميل حالة الوساطة...</div>;
   if (!escrow) return <div className="notice">لم يتم إنشاء سجل ضمان لهذه المهمة بعد.</div>;
   const isBuyer = escrow.client;
+  const challengeEndMs = Number(escrow.challengePeriodEnd || 0) * 1000;
+  const claimable = challengeEndMs > 0 && now >= challengeEndMs && !escrow.onchainClaimed;
+  const remainingSeconds = challengeEndMs > now ? Math.ceil((challengeEndMs - now) / 1000) : 0;
   const txLinks = [["إيداع", escrow.depositTxHash], ["تحرير", escrow.releaseTxHash], ["مطالبة", escrow.claimTxHash]] as const;
 
   return <section className="content-card" style={{ marginTop: 18 }}>
     <h2>الوساطة الخارجية عبر Unicrow</h2>
     <p className="muted">Base Sepolia · USDC تجريبي · Chain ID 84532. كل توقيع مالي يتم داخل Rabby. لا ترسل أصولاً حقيقية.</p>
-    <div className="notice">حالة الضمان في BidRush: <b>{escrow.status}</b> · المبلغ: <b>{escrow.amount} USDC</b> · مدة الاعتراض في العقد: 3 أيام.</div>
+    <div className="notice">حالة الضمان في BidRush: <b>{escrow.status}</b> · المبلغ: <b>{escrow.amount} USDC</b> · مدة الاعتراض: {Math.ceil(Number(escrow.challengePeriodSeconds || 0) / 86400)} يوم. {challengeEndMs ? (claimable ? "انتهت فترة الاعتراض." : "المتبقي للاعتراض: " + Math.floor(remainingSeconds / 86400) + " يوم و" + Math.floor((remainingSeconds % 86400) / 3600) + " ساعة.") : "سيظهر موعد المطالبة بعد تأكيد التمويل."}</div>
     <p className="muted">محفظة العميل: <code dir="ltr">{escrow.buyerWallet}</code><br/>محفظة المستقل: <code dir="ltr">{escrow.sellerWallet}</code></p>
     {isBuyer && escrow.status === "awaiting_funding" && <button className="btn btn-primary" disabled={busy} onClick={() => signAction("fund")}>{busy ? "جارٍ تنفيذ العملية..." : "تمويل الضمان بـ USDC التجريبي"}</button>}
     {isBuyer && escrow.status === "work_submitted" && <button className="btn btn-primary" disabled={busy} onClick={() => signAction("release")}>{busy ? "جارٍ تنفيذ العملية..." : "تحرير المبلغ للمستقل"}</button>}
-    {!isBuyer && escrow.status === "released" && !escrow.claimTxHash && <button className="btn btn-primary" disabled={busy} onClick={() => signAction("claim")}>{busy ? "جارٍ تنفيذ العملية..." : "المطالبة بالمبلغ واستلامه"}</button>}
+    {!isBuyer && escrow.status === "released" && !escrow.claimTxHash && claimable && <button className="btn btn-primary" disabled={busy} onClick={() => signAction("claim")}>{busy ? "جارٍ تنفيذ العملية..." : "المطالبة بالمبلغ واستلامه"}</button>}
     {escrow.status === "funded" && <p className="notice">تم تأكيد التمويل. يستطيع المستقل تسليم العمل الآن.</p>}
+    {!isBuyer && escrow.status === "released" && !escrow.claimTxHash && !claimable && <p className="notice">لا يمكن المطالبة قبل انتهاء فترة الاعتراض المحددة في العقد الذكي.</p>}
     {escrow.status === "released" && escrow.claimTxHash && <p className="notice">تم تحرير الضمان وتأكيد مطالبة المستفيد.</p>}
     {message && <p role="status" className="notice">{message}</p>}
     {error && <p role="alert" className="form-error">{error}</p>}
