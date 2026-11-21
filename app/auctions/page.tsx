@@ -2,4 +2,38 @@ import Link from "next/link";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import {db} from "@/lib/db";
 export const dynamic="force-dynamic";
-export default async function Auctions(){let rows:any[]=[];try{await db().execute("UPDATE tasks SET status='expired' WHERE status='live' AND auction_ends_at<=UTC_TIMESTAMP()");const [r]=await db().query("SELECT t.id,t.title,t.description,t.category,t.currency,t.max_budget,t.auction_ends_at,(t.image_data IS NOT NULL) AS has_image,u.display_name AS client_name,(SELECT COUNT(*) FROM bids b WHERE b.task_id=t.id) AS bids_count,(SELECT MIN(amount) FROM bids b WHERE b.task_id=t.id) AS best_bid FROM tasks t JOIN users u ON u.id=t.client_id WHERE t.status='live' AND t.auction_ends_at>UTC_TIMESTAMP() ORDER BY t.auction_ends_at ASC LIMIT 100");rows=r as any[];}catch{}return <WorkspaceShell><div className="page-heading"><span className="eyebrow">فرص حقيقية من قاعدة البيانات</span><h1>المزادات المباشرة</h1><p>قدّم سعراً أقل من أفضل عرض حالي. لا توجد رسوم اشتراك للمستقلين.</p></div><div className="auction-list">{rows.map(t=><article className="auction-card" key={t.id}><div>{t.has_image&&<img src={'/api/auctions/'+t.id+'/image'} alt={t.title} style={{width:'100%',maxWidth:220,height:130,objectFit:'cover',borderRadius:10,marginBottom:12}}/>}<span className="tag">{t.category}</span><h2>{t.title}</h2><p>{t.description.slice(0,180)}{t.description.length>180?"…":""}</p><small>نشر بواسطة {t.client_name} · {t.bids_count} عروض</small></div><div className="auction-side"><small>الميزانية القصوى</small><b>{t.max_budget} {t.currency}</b>{t.best_bid&&<small>أفضل عرض: {t.best_bid} {t.currency}</small>}<Link className="btn btn-primary btn-small" href={"/auctions/"+t.id}>عرض التفاصيل</Link></div></article>)}{!rows.length&&<div className="empty-state">لا توجد مزادات نشطة حالياً.<Link href="/auctions/new" className="btn btn-primary">أنشئ مزاداً جديداً</Link></div>}</div></WorkspaceShell>}
+export default async function Auctions(){
+ let rows:any[]=[];
+ try{
+  await db().execute("UPDATE tasks SET status='expired' WHERE status='live' AND auction_ends_at<=UTC_TIMESTAMP()");
+  const [r]=await db().query("SELECT t.id,t.title,t.description,t.category,t.currency,t.max_budget,t.auction_ends_at,(t.image_key IS NOT NULL OR t.image_data IS NOT NULL) AS has_image,u.display_name AS client_name,(SELECT COUNT(*) FROM bids b WHERE b.task_id=t.id) AS bids_count,(SELECT MIN(amount) FROM bids b WHERE b.task_id=t.id) AS best_bid FROM tasks t JOIN users u ON u.id=t.client_id WHERE t.status='live' AND t.auction_ends_at>UTC_TIMESTAMP() ORDER BY t.auction_ends_at ASC LIMIT 100");
+  rows=r as any[];
+ }catch(e){console.error("auction_cards_load_failed",e);}
+ return <WorkspaceShell>
+  <div className="page-heading auction-page-heading">
+   <span className="eyebrow">فرص حقيقية من قاعدة البيانات</span>
+   <h1>المزادات والمناقصات المباشرة</h1>
+   <p>استعرض المناقصات، قارن العروض، وقدّم عرضك المناسب قبل انتهاء الوقت.</p>
+  </div>
+  <div className="auction-grid">
+   {rows.map(t=><article className="auction-tile" key={t.id}>
+    <h2 className="auction-tile-title">{t.title}</h2>
+    {t.has_image?<Link href={"/auctions/"+t.id} className="auction-tile-image-link"><img className="auction-tile-image" src={"/api/auctions/"+t.id+"/image"} alt={t.title}/></Link>:<Link href={"/auctions/"+t.id} className="auction-tile-image-placeholder"><span>BidRush</span><small>لا توجد صورة مرفقة</small></Link>}
+    <div className="auction-tile-body">
+     <div className="auction-tile-meta"><span className="tag">{t.category}</span><span className="auction-live-label"><i/> مباشر</span></div>
+     <p className="auction-tile-description">{t.description.slice(0,190)}{t.description.length>190?"…":""}</p>
+     <div className="auction-tile-facts">
+      <div><small>الميزانية القصوى</small><b>{t.max_budget} {t.currency}</b></div>
+      <div><small>أفضل عرض</small><b>{t.best_bid?t.best_bid+" "+t.currency:"بانتظار العروض"}</b></div>
+     </div>
+     <div className="auction-tile-footer"><small>بواسطة {t.client_name} · {t.bids_count} عروض</small></div>
+     <div className="auction-tile-actions">
+      <Link className="btn btn-outline btn-small" href={"/auctions/"+t.id+"#offers"}>العروض ({t.bids_count})</Link>
+      <Link className="btn btn-primary btn-small" href={"/auctions/"+t.id+"#send-offer"}>إرسال عرض</Link>
+     </div>
+    </div>
+   </article>)}
+   {!rows.length&&<div className="empty-state auction-empty">لا توجد مناقصات نشطة حالياً.<Link href="/auctions/new" className="btn btn-primary">أنشئ مناقصة جديدة</Link></div>}
+  </div>
+ </WorkspaceShell>;
+}
