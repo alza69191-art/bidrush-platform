@@ -33,7 +33,20 @@ export default function WalletTestPanel(){
   const provider=candidates.find(p=>p?.isRabby) || window.ethereum;
   if(!provider){setStatus("لم يتم العثور على المحفظة.");return;}
   try{
-   await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:TARGET_CHAIN_ID}]});
+   try{
+    await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:TARGET_CHAIN_ID}]});
+   }catch(error){
+    const code=(error as {code?:number})?.code;
+    if(code!==4902)throw error;
+    await provider.request({method:"wallet_addEthereumChain",params:[{
+     chainId:TARGET_CHAIN_ID,
+     chainName:"Base Sepolia",
+     nativeCurrency:{name:"Ether",symbol:"ETH",decimals:18},
+     rpcUrls:["https://sepolia.base.org"],
+     blockExplorerUrls:["https://sepolia.basescan.org"]
+    }]});
+    await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:TARGET_CHAIN_ID}]});
+   }
    const id=String(await provider.request({method:"eth_chainId"}));setChain(id);
    setStatus(id.toLowerCase()===TARGET_CHAIN_ID?"تم اختيار شبكة Base Sepolia بنجاح.":"لم يتم تأكيد تغيير الشبكة.");
   }catch(e){setStatus(e instanceof Error?e.message:"تعذر تغيير الشبكة.");}
